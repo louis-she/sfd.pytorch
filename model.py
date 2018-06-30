@@ -85,7 +85,7 @@ class Net(nn.Module):
         x = self.conv5_1(x)
         x = self.conv5_2(x)
         f3 = self.conv5_3(x)
-        x = self.pool(f3)
+        x = self.pool5(f3)
 
         x = self.conv_fc6(x)
         f4 = self.conv_fc7(x)
@@ -94,7 +94,7 @@ class Net(nn.Module):
         f5 = self.conv6_2(x)
 
         x = self.conv7_1(f5)
-        f6 = self.conv7_1(x)
+        f6 = self.conv7_2(x)
 
         return (
             self.predict3_3(f1),

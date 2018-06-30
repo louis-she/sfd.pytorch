@@ -1,9 +1,8 @@
 import numpy as np
 
-def generate_anchors():
-    anchor_stride = [4, 8, 16, 32, 64, 128]
-    anchor_size = [16, 32, 64, 128, 256, 512]
-    image_size = 640
+def generate_anchors(anchor_stride=[4, 8, 16, 32, 64, 128],
+                     anchor_size=[16, 32, 64, 128, 256, 512],
+                     image_size=640):
     all_anchors = []
 
     for i in range(len(anchor_stride)):

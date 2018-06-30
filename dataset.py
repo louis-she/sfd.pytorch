@@ -28,7 +28,7 @@ def create_datasets(dataset_dir, skip_invalid=True, skip_occlusion=True,
                 if len(lines) == cursor:
                     break
 
-                file_path = lines[cursor]
+                file_path = lines[cursor][:-1]
                 face_count = int(lines[cursor+1])
                 bboxes = lines[cursor+2:cursor+2+face_count]
 
@@ -50,7 +50,7 @@ def create_datasets(dataset_dir, skip_invalid=True, skip_occlusion=True,
     return train_dataset, validation_dataset
 
 
-class FDDBDataset():
+class FDDBDataset(Dataset):
 
     def __init__(self, images_dir, annotation, transform=None):
         super().__init__()
@@ -76,5 +76,5 @@ class FDDBDataset():
 
 
 if __name__ == "__main__":
-    a, b = create_datasets('/Users/louis/Downloads/wider_face')
-    print(a)
+    a, b = create_datasets('/home/louis/datasets/wider_face')
+    print(a[6])
