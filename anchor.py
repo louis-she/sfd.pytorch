@@ -26,20 +26,20 @@ def generate_anchors(anchor_stride=[4, 8, 16, 32, 64, 128],
 
 def mark_anchors(anchors, gt_boxes, positive_threshold=0.5,
                  negative_threshold=0.3):
-    """IoU > positive_threshold is positive anchors,
-    < negative_threshold is negative anchors
+    """IoU larger than positive_threshold is positive anchors,
+    less than negative_threshold is negative anchors
     """
     iou = compute_iou(anchors, gt_boxes)
     max_iou = iou.max(axis=1)
 
-    positive_anchors = anchors[max_iou > positive_threshold]
-    negative_anchors = anchors[max_iou < negative_threshold]
+    positive_anchor_indices = np.where(max_iou > positive_threshold)
+    negative_anchor_indices = np.where(max_iou < negative_threshold)
 
     # positive anchors should get coorsponding gt_boxes for computing deltas
     positive_iou = iou[max_iou > positive_threshold]
-    matched_gt_boxes = gt_boxes[positive_iou.argmax(axis=1)]
+    matched_gt_box_indices = positive_iou.argmax(axis=1)
 
-    return positive_anchors, matched_gt_boxes, negative_anchors
+    return positive_anchor_indices, matched_gt_box_indices, negative_anchor_indices
 
 
 def compute_iou(anchors, gt_boxes):
