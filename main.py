@@ -2,15 +2,40 @@ import torch
 import cv2
 from dataset import create_datasets
 from model import Net
+from trainer import Trainer
+
+torch.set_default_tensor_type('torch.DoubleTensor')
 
 if __name__ == "__main__":
 
     train_dataset, val_dataset = create_datasets('/home/louis/datasets/wider_face')
 
-    image, annotation = train_dataset[0]
-    image = cv2.resize(image, (640, 640))
+    train_dataloader = torch.utils.data.DataLoader(
+        train_dataset,
+        batch_size=1,
+        num_workers=1,
+        shuffle=True
+    )
 
-    _input = torch.tensor(image).permute(2, 0, 1).unsqueeze(0).float()
+    model = Net()
 
-    net = Net()
-    ret = net(_input)
+    trainables_wo_bn = [param for name, param in model.named_parameters() if
+                        param.requires_grad and 'bn' not in name]
+    trainables_only_bn = [param for name, param in model.named_parameters() if
+                          param.requires_grad and 'bn' in name]
+
+    optimizer = torch.optim.SGD([
+        {'params': trainables_wo_bn, 'weight_decay': 0.0001},
+        {'params': trainables_only_bn}
+    ], lr=0.01, momentum=0.9)
+
+    trainer = Trainer(
+        optimizer,
+        model,
+        train_dataloader,
+        None,
+        max_epoch=100,
+        resume=None,
+        log_dir='./logs'
+    )
+    trainer.train()

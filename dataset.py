@@ -1,6 +1,8 @@
 import os
 
 import cv2
+import torch
+import numpy as np
 from torch.utils.data import Dataset
 
 def create_datasets(dataset_dir, skip_invalid=True, skip_occlusion=True,
@@ -52,11 +54,12 @@ def create_datasets(dataset_dir, skip_invalid=True, skip_occlusion=True,
 
 class FDDBDataset(Dataset):
 
-    def __init__(self, images_dir, annotation, transform=None):
+    def __init__(self, images_dir, annotation, image_size=640, transform=None):
         super().__init__()
         self.images_dir = images_dir
         self.annotation = annotation
         self.transform = transform
+        self.image_size = image_size
 
     def __image_loader(self, image_path):
         return cv2.imread(image_path)
@@ -69,10 +72,21 @@ class FDDBDataset(Dataset):
         file_path = os.path.join(self.images_dir, file_path)
         image = self.__image_loader(file_path)
 
+        # scale coordinate
+        height, width = image.shape[:2]
+        width_scale, height_scale = 640.0 / width, 640.0 / height
+        coordinates = np.array(list(map(lambda x: [
+            x[0] * height_scale,
+            x[1] * width_scale,
+            x[2] * height_scale,
+            x[3] * width_scale
+        ], coordinates)))
+        image = cv2.resize(image, (self.image_size, self.image_size))
+
         if self.transform:
             image = self.transform(image)
 
-        return image, coordinates
+        return (image, coordinates, file_path)
 
 
 if __name__ == "__main__":
