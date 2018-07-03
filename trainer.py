@@ -1,6 +1,7 @@
 import os
 
 import torch
+from torch import nn
 import torch.nn.functional as F
 import numpy as np
 
@@ -19,6 +20,13 @@ class Trainer(object):
         self.log_dir = log_dir
         self.optimizer = optimizer
         self.model = model.to(device)
+        for m in model.modules():
+            if isinstance(m, nn.Conv2d):
+                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+            elif isinstance(m, nn.BatchNorm2d):
+                nn.init.constant_(m.weight, 1)
+                nn.init.constant_(m.bias, 0)
+
         self.max_epoch = max_epoch
         self.resume = resume
         self.persist_stride = persist_stride
@@ -80,6 +88,10 @@ class Trainer(object):
                 pos_indices, gt_bboxes_indices, neg_indices = \
                     mark_anchors(self.anchors, gt_bboxes)
 
+                # in case of no positive anchors
+                if len(pos_indices) == 0:
+                    continue
+
                 # make samples of negative to positive 3:1
                 n_neg_indices = len(pos_indices) * 3
                 reg_random_indices = torch.randperm(len(neg_indices))
@@ -96,18 +108,15 @@ class Trainer(object):
                 pos_preds = predictions[pos_indices].to(device)
                 neg_preds = predictions[neg_indices].to(device)
 
-                epsilon = 0.0001
+                epsilon = 0.01
                 # equation 5 in the paper faster rcnn
-                print(pos_preds.size())
-                print(pos_anchors.size())
-                print(file_path)
                 tx = pos_preds[:, 0] - pos_anchors[:, 0]
                 ty = pos_preds[:, 1] - pos_anchors[:, 1]
                 tw = torch.log((pos_preds[:, 2] + epsilon) / pos_anchors[:, 2])
                 th = torch.log((pos_preds[:, 3] + epsilon) / pos_anchors[:, 3])
                 t = torch.stack((tx, ty, tw, th))
 
-                matched_bboxes = gt_bboxes[gt_bboxes_indices].double().to(device)
+                matched_bboxes = gt_bboxes[gt_bboxes_indices].double().to(device) / 640
                 gtx = matched_bboxes[:, 0] - pos_anchors[:, 0]
                 gty = matched_bboxes[:, 1] - pos_anchors[:, 1]
                 gtw = torch.log(matched_bboxes[:, 2] / pos_anchors[:, 2])
@@ -129,7 +138,7 @@ class Trainer(object):
                 loss_class = F.binary_cross_entropy(F.sigmoid(effective_preds), targets)
                 loss_reg = F.smooth_l1_loss(t, gt)
 
-                loss = loss_class + loss_reg
+                loss = 5*loss_class + loss_reg
 
                 print("loss_class {}, loss_reg {}".format(
                     loss_class, loss_reg
