@@ -1,7 +1,7 @@
 import numpy as np
 
-def generate_anchors(anchor_stride=[4, 8, 16, 32, 64, 128],
-                     anchor_size=[16, 32, 64, 128, 256, 512],
+def generate_anchors(anchor_stride=[8, 16, 32, 64, 128],
+                     anchor_size=[32, 64, 128, 256, 512],
                      image_size=640):
     all_anchors = []
 
@@ -17,17 +17,23 @@ def generate_anchors(anchor_stride=[4, 8, 16, 32, 64, 128],
                 left = col * stride
                 bottom = top + size
                 right = left + size
-                anchors.append((top, left, bottom, right))
+                anchors.append((
+                    top,
+                    left,
+                    min(bottom, image_size),
+                    min(right, image_size)
+                ))
 
         all_anchors.append(anchors)
 
     return all_anchors
 
 
-def mark_anchors(anchors, gt_boxes, positive_threshold=0.5,
-                 negative_threshold=0.3):
+def mark_anchors(anchors, gt_boxes, positive_threshold=0.35,
+                 negative_threshold=0.1):
     """IoU larger than positive_threshold is positive anchors,
-    less than negative_threshold is negative anchors
+    less than negative_threshold is negative anchors. (Obviousely, this
+    comment is trash talk...)
     """
     iou = compute_iou(anchors, gt_boxes)
     max_iou = iou.max(axis=1)
@@ -36,8 +42,26 @@ def mark_anchors(anchors, gt_boxes, positive_threshold=0.5,
     negative_anchor_indices = np.where(max_iou < negative_threshold)
 
     # positive anchors should get coorsponding gt_boxes for computing deltas
-    positive_iou = iou[max_iou > positive_threshold]
+    positive_iou = iou[positive_anchor_indices]
     matched_gt_box_indices = positive_iou.argmax(axis=1)
+
+    # if matched anchors is not enough, do the sort and pick top N trick.
+    # N is the average number of matching anchors when the anchors are
+    # enough. I randomly pick 500 images from the dataset and do anchor march,
+    # the average number is about 150.
+    if len(matched_gt_box_indices) < 150:
+        # anyway, 0.1 is the bottom line
+        allowed_positive_anchor_indices = np.where(max_iou > 0.1)
+        top_n_sorted_indices = np.argsort(max_iou)[::-1][:150]
+
+        # get the intersect of the 2 array
+        positive_anchor_indices = np.intersect1d(
+            allowed_positive_anchor_indices,
+            top_n_sorted_indices
+        )
+
+        positive_iou = iou[positive_anchor_indices]
+        matched_gt_box_indices = positive_iou.argmax(axis=1)
 
     return positive_anchor_indices, matched_gt_box_indices, negative_anchor_indices
 

@@ -97,7 +97,7 @@ class Net(nn.Module):
         f6 = self.conv7_2(x)
 
         return (
-            F.relu(self.predict3_3(f1)),
+            F.relu(self.predict3_3(f1)), # TODO: 这一层的输出建议不用
             F.relu(self.predict4_3(f2)),
             F.relu(self.predict5_3(f3)),
             F.relu(self.predict_fc7(f4)),
