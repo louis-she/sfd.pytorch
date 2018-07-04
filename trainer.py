@@ -1,4 +1,7 @@
 import os
+import sys
+import logging
+from time import time
 
 import torch
 from torch import nn
@@ -10,16 +13,20 @@ from anchor import generate_anchors, mark_anchors
 
 device = torch.device("cuda")
 
-
 class Trainer(object):
 
     def __init__(self, optimizer, model, training_dataloader,
                  validation_dataloader, log_dir=False, max_epoch=100,
-                 resume=False, persist_stride=5):
+                 resume=False, persist_stride=1, verbose=False):
 
+        # debug
+        self.verbose = verbose
         self.log_dir = log_dir
+        log_file = os.path.join(self.log_dir, 'log.txt')
+        logging.basicConfig(filename=log_file, level=logging.DEBUG)
+
         self.optimizer = optimizer
-        self.model = model.to(device)
+        self.model = model.float().to(device)
         for m in model.modules():
             if isinstance(m, nn.Conv2d):
                 nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
@@ -37,6 +44,7 @@ class Trainer(object):
         self.anchors = np.vstack(
             list(map(lambda x: np.array(x), generate_anchors()))
         )
+        self.len_anchors = len(self.anchors)
 
         if not self.log_dir:
             self.log_dir = os.path.join(os.path.dirname(
@@ -65,6 +73,24 @@ class Trainer(object):
             if not (self.current_epoch % self.persist_stride):
                 self.persist()
 
+    def mark(self, checkpoint, reset=False):
+        if self.verbose:
+            torch.cuda.synchronize()
+            if reset:
+                self.execute_time = time()
+                self.time_log = []
+            self.time_log.append((checkpoint, time() - self.execute_time))
+
+    def execute_info(self):
+        if self.verbose:
+            last_time = 0
+            for log in self.time_log:
+                current_time = log[1]
+                checkpoint = log[0]
+                time_span = current_time - last_time
+                print("{} ==> {}".format(time_span, checkpoint))
+                last_time = current_time
+
     def run_epoch(self, mode):
         if mode == 'train':
             dataloader = self.training_dataloader
@@ -74,80 +100,117 @@ class Trainer(object):
             self.model.eval()
 
         with torch.set_grad_enabled(mode == 'train'):
-            for images, gt_bboxes, file_path in dataloader:
+            total_class_loss = 0
+            total_reg_loss = 0
+            total_loss = 0
+            total_iter = len(dataloader)
+
+            for index, (images, all_gt_bboxes, pathes) in enumerate(dataloader):
                 # gt_bboxes: 2-d list of (batch_size, ndarray(bbox_size, 4) )
-                image = images.permute(0, 3, 1, 2).double().to(device)
-
+                image = images.permute(0, 3, 1, 2).float().to(device)
                 predictions = list(self.model(image))
-                for index, prediction in enumerate(predictions):
-                    predictions[index] = torch.squeeze(prediction).view(6, -1).permute(1, 0)
-                predictions = torch.cat(predictions)
-                gt_bboxes = gt_bboxes[0]
+                predictions = list(zip(*predictions))
+                for i, prediction in enumerate(predictions):
+                    prediction = list(prediction)
+                    for k, feature_map_prediction in enumerate(prediction):
+                        prediction[k] = feature_map_prediction.view(6, -1).permute(1, 0)
+                    # prediction is 6 x N x 6
+                    predictions[i] = torch.cat(prediction)
 
-                # pick up positive and negative anchors
-                pos_indices, gt_bboxes_indices, neg_indices = \
-                    mark_anchors(self.anchors, gt_bboxes)
+                # predictions elements is 6 x anchor_size(34125 this case)
 
-                # in case of no positive anchors
-                if len(pos_indices) == 0:
-                    continue
+                total_t = []
+                total_gt = []
+                total_effective_pred = []
+                total_target = []
+                for i, prediction in enumerate(predictions):
+                    gt_bboxes = all_gt_bboxes[i]
+                    # pick up positive and negative anchors
+                    pos_indices, gt_bboxes_indices, neg_indices = \
+                        mark_anchors(self.anchors, gt_bboxes)
 
-                # make samples of negative to positive 3:1
-                n_neg_indices = len(pos_indices) * 3
-                reg_random_indices = torch.randperm(len(neg_indices))
-                neg_indices = neg_indices[reg_random_indices][:n_neg_indices]
+                    # in case of no positive anchors
+                    if len(pos_indices) == 0:
+                        continue
 
-                pos_anchors = torch.tensor(
-                    change_coordinate(self.anchors[pos_indices])
-                ).double().to(device) / 640
+                    # make samples of negative to positive 3:1
+                    n_neg_indices = len(pos_indices) * 3
+                    reg_random_indices = torch.randperm(len(neg_indices))
+                    neg_indices = neg_indices[reg_random_indices][:n_neg_indices]
 
-                neg_anchors = torch.tensor(
-                    change_coordinate(self.anchors[neg_indices])
-                ).double().to(device) / 640
+                    pos_anchors = torch.tensor(
+                        change_coordinate(self.anchors[pos_indices])
+                    ).float().to(device) / 640
 
-                pos_preds = predictions[pos_indices].to(device)
-                neg_preds = predictions[neg_indices].to(device)
+                    neg_anchors = torch.tensor(
+                        change_coordinate(self.anchors[neg_indices])
+                    ).float().to(device) / 640
 
-                epsilon = 0.01
-                # equation 5 in the paper faster rcnn
-                tx = pos_preds[:, 0] - pos_anchors[:, 0]
-                ty = pos_preds[:, 1] - pos_anchors[:, 1]
-                tw = torch.log((pos_preds[:, 2] + epsilon) / pos_anchors[:, 2])
-                th = torch.log((pos_preds[:, 3] + epsilon) / pos_anchors[:, 3])
-                t = torch.stack((tx, ty, tw, th))
+                    pos_preds = prediction[pos_indices]
+                    neg_preds = prediction[neg_indices]
 
-                matched_bboxes = gt_bboxes[gt_bboxes_indices].double().to(device) / 640
-                gtx = matched_bboxes[:, 0] - pos_anchors[:, 0]
-                gty = matched_bboxes[:, 1] - pos_anchors[:, 1]
-                gtw = torch.log(matched_bboxes[:, 2] / pos_anchors[:, 2])
-                gth = torch.log(matched_bboxes[:, 3] / pos_anchors[:, 3])
-                gt = torch.stack((gtx, gty, gtw, gth))
+                    epsilon = 0.01
+                    # equation 5 in the paper faster rcnn
+                    tx = pos_preds[:, 0] - pos_anchors[:, 0]
+                    ty = pos_preds[:, 1] - pos_anchors[:, 1]
+                    tw = torch.log((pos_preds[:, 2] + epsilon) / pos_anchors[:, 2])
+                    th = torch.log((pos_preds[:, 3] + epsilon) / pos_anchors[:, 3])
+                    t = torch.stack((tx, ty, tw, th), dim=1)
+                    total_t.append(t)
 
-                pos_targets = torch.zeros_like(pos_preds)
-                pos_targets[:, 1] = 1.0
-                neg_targets = torch.zeros_like(neg_preds)
-                neg_targets[:, 0] = 1.0
+                    gt_bboxes = torch.tensor(gt_bboxes).float().to(device)
+                    matched_bboxes = gt_bboxes[gt_bboxes_indices] / 640
+                    gtx = matched_bboxes[:, 0] - pos_anchors[:, 0]
+                    gty = matched_bboxes[:, 1] - pos_anchors[:, 1]
+                    gtw = torch.log(matched_bboxes[:, 2] / pos_anchors[:, 2])
+                    gth = torch.log(matched_bboxes[:, 3] / pos_anchors[:, 3])
+                    gt = torch.stack((gtx, gty, gtw, gth), dim=1)
+                    total_gt.append(gt)
 
-                effective_preds = torch.cat((pos_preds, neg_preds))
-                targets = torch.cat((pos_targets, neg_targets))
+                    pos_targets = torch.zeros(len(pos_preds), 2).float().to(device)
+                    pos_targets[:, 1] = 1.0
+                    neg_targets = torch.zeros(len(neg_preds), 2).float().to(device)
+                    neg_targets[:, 0] = 1.0
 
-                shuffle_indexes = torch.randperm(effective_preds.size()[0])
-                effective_preds = effective_preds[shuffle_indexes]
-                targets = targets[shuffle_indexes]
+                    effective_preds = torch.cat((pos_preds[:, 4:], neg_preds[:, 4:]))
+                    targets = torch.cat((pos_targets, neg_targets))
 
-                loss_class = F.binary_cross_entropy(F.sigmoid(effective_preds), targets)
-                loss_reg = F.smooth_l1_loss(t, gt)
+                    shuffle_indexes = torch.randperm(effective_preds.size()[0])
+                    effective_preds = effective_preds[shuffle_indexes]
+                    targets = targets[shuffle_indexes]
+                    total_effective_pred.append(effective_preds)
+                    total_target.append(targets)
 
-                loss = 5*loss_class + loss_reg
+                total_t = torch.cat(total_t)
+                total_gt = torch.cat(total_gt)
+                total_targets = torch.cat(total_target)
+                total_effective_pred = torch.cat(total_effective_pred)
 
-                print("loss_class {}, loss_reg {}".format(
-                    loss_class, loss_reg
-                ))
+                loss_class = 5 * F.binary_cross_entropy(
+                    F.sigmoid(total_effective_pred), total_targets
+                )
+                loss_reg = F.smooth_l1_loss(total_t, total_gt)
+                loss = loss_class + loss_reg
+
+                total_class_loss += loss_class
+                total_reg_loss += loss_reg
+                total_loss += loss
+
+                if not index % 1:
+                    logging.info(
+                        "[{}][epoch:{}][iter:{}][total:{}] loss_class {:.8f} - loss_reg {:.8f}".format(
+                            mode, self.current_epoch, index, total_iter, loss_class, loss_reg
+                        )
+                    )
 
                 if mode == 'train':
                     self.optimizer.zero_grad()
                     loss.backward()
                     self.optimizer.step()
+
+            logging.info('[{}][epoch:{}] total_class_loss - {} total_reg_loss {} - total_loss {}'.format(
+                mode, self.current_epoch, total_class_loss, total_reg_loss, total_loss
+            ))
 
     def persist(self, is_best=False):
         model_dir = os.path.join(self.log_dir, 'models')

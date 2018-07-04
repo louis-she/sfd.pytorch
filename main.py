@@ -1,6 +1,6 @@
 import torch
 import cv2
-from dataset import create_datasets
+from dataset import create_datasets, my_collate_fn
 from model import Net
 from trainer import Trainer
 
@@ -12,13 +12,21 @@ if __name__ == "__main__":
 
     train_dataloader = torch.utils.data.DataLoader(
         train_dataset,
-        batch_size=1,
-        num_workers=1,
-        shuffle=True
+        batch_size=8,
+        num_workers=4,
+        shuffle=True,
+        collate_fn=my_collate_fn
+    )
+
+    val_dataloader = torch.utils.data.DataLoader(
+        val_dataset,
+        batch_size=8,
+        num_workers=4,
+        shuffle=False,
+        collate_fn=my_collate_fn
     )
 
     model = Net()
-
     trainables_wo_bn = [param for name, param in model.named_parameters() if
                         param.requires_grad and 'bn' not in name]
     trainables_only_bn = [param for name, param in model.named_parameters() if
@@ -33,9 +41,9 @@ if __name__ == "__main__":
         optimizer,
         model,
         train_dataloader,
-        None,
+        val_dataloader,
         max_epoch=100,
         resume=None,
-        log_dir='./logs'
+        log_dir='/media/louis/ext4/models/sfd'
     )
     trainer.train()

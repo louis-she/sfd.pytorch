@@ -5,6 +5,15 @@ import torch
 import numpy as np
 from torch.utils.data import Dataset
 
+
+def my_collate_fn(batch):
+    images = torch.stack(list(map(lambda x: torch.tensor(x[0]).float(), batch)))
+    coordinates = list(map(lambda x: x[1], batch))
+    pathes = list(map(lambda x: x[2], batch))
+
+    return images, coordinates, pathes
+
+
 def create_datasets(dataset_dir, skip_invalid=True, skip_occlusion=True,
                     skip_illumination=False, skip_heavy_blur=True):
     annotations_dir = os.path.join(dataset_dir, 'wider_face_split')

@@ -96,14 +96,14 @@ class Net(nn.Module):
         x = self.conv7_1(f5)
         f6 = self.conv7_2(x)
 
-        return (
+        return [
             F.relu(self.predict3_3(f1)), # TODO: 这一层的输出建议不用
             F.relu(self.predict4_3(f2)),
             F.relu(self.predict5_3(f3)),
             F.relu(self.predict_fc7(f4)),
             F.relu(self.predict6_2(f5)),
             F.relu(self.predict7_2(f6))
-        )
+        ]
 
     def _conv_block(self, in_channel, out_channel, kernel=3, stride=1):
         return nn.Sequential(
