@@ -169,8 +169,9 @@ class Trainer(object):
                     gt_bboxes = change_coordinate(gt_bboxes)
                     gt_bboxes = torch.tensor(gt_bboxes).float().to(device)
                     matched_bboxes = gt_bboxes[gt_bboxes_indices]
-                    gtx = matched_bboxes[:, 0] - pos_anchors[:, 0]
-                    gty = matched_bboxes[:, 1] - pos_anchors[:, 1]
+
+                    gtx = (matched_bboxes[:, 0] - pos_anchors[:, 0]) / pos_anchors[:, 3]
+                    gty = (matched_bboxes[:, 1] - pos_anchors[:, 1]) / pos_anchors[:, 3]
                     gtw = torch.log(matched_bboxes[:, 2] / pos_anchors[:, 2])
                     gth = torch.log(matched_bboxes[:, 3] / pos_anchors[:, 3])
                     gt = torch.stack((gtx, gty, gtw, gth), dim=1)
@@ -188,6 +189,8 @@ class Trainer(object):
                     total_effective_pred.append(effective_preds)
                     total_target.append(targets)
 
+                if len(total_t) == 0:
+                    continue
                 total_t = torch.cat(total_t)
                 total_gt = torch.cat(total_gt)
                 total_targets = torch.cat(total_target)
