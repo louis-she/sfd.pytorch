@@ -7,7 +7,7 @@ from torch.utils.data import Dataset
 
 
 def my_collate_fn(batch):
-    images = torch.stack(list(map(lambda x: torch.tensor(x[0]).float(), batch)))
+    images = torch.stack(list(map(lambda x: torch.tensor(x[0]).double(), batch)))
     coordinates = list(map(lambda x: x[1], batch))
     pathes = list(map(lambda x: x[2], batch))
 

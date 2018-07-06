@@ -26,7 +26,7 @@ class Trainer(object):
         logging.basicConfig(filename=log_file, level=logging.DEBUG)
 
         self.optimizer = optimizer
-        self.model = model.float().to(device)
+        self.model = model.double().to(device)
         for m in model.modules():
             if isinstance(m, nn.Conv2d):
                 nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
@@ -35,7 +35,10 @@ class Trainer(object):
                 nn.init.constant_(m.bias, 0)
 
         self.max_epoch = max_epoch
-        self.resume = resume
+        if resume:
+            self.resume = str(resume)
+        else:
+            self.resume = False
         self.persist_stride = persist_stride
         self.training_dataloader = training_dataloader
         self.validation_dataloader = validation_dataloader
@@ -52,11 +55,22 @@ class Trainer(object):
         if not os.path.isdir(self.log_dir):
             os.mkdir(self.log_dir)
 
-        if resume:
-            state_file = os.path.join(self.log_dir, 'models', resume)
-            if not os.path.isfile(state_file):
+        if self.resume:
+            candidate_a = os.path.join(self.log_dir, 'models', self.resume)
+            candidate_b = os.path.join(self.log_dir, 'models', 'epoch_{}.pth.tar'.format(self.resume))
+            candidate_c = self.resume
+
+            if os.path.isfile(candidate_a):
+                state_file = candidate_a
+            elif os.path.isfile(candidate_b):
+                state_file = candidate_b
+            elif os.path.isfile(candidate_c):
+                state_file = candidate_c
+            else:
                 raise RuntimeError(
-                    "resume file {} is not found".format(state_file))
+                    "resume file {} is not found".format(resume)
+                )
+
             print("loading checkpoint {}".format(state_file))
             checkpoint = torch.load(state_file)
             self.start_epoch = self.current_epoch = checkpoint['epoch']
@@ -107,7 +121,7 @@ class Trainer(object):
 
             for index, (images, all_gt_bboxes, pathes) in enumerate(dataloader):
                 # gt_bboxes: 2-d list of (batch_size, ndarray(bbox_size, 4) )
-                image = images.permute(0, 3, 1, 2).float().to(device)
+                image = images.permute(0, 3, 1, 2).double().to(device)
                 predictions = list(self.model(image))
                 predictions = list(zip(*predictions))
                 for i, prediction in enumerate(predictions):
@@ -140,26 +154,23 @@ class Trainer(object):
 
                     pos_anchors = torch.tensor(
                         change_coordinate(self.anchors[pos_indices])
-                    ).float().to(device) / 640
+                    ).double().to(device)
 
                     neg_anchors = torch.tensor(
                         change_coordinate(self.anchors[neg_indices])
-                    ).float().to(device) / 640
+                    ).double().to(device)
 
                     pos_preds = prediction[pos_indices]
                     neg_preds = prediction[neg_indices]
 
-                    epsilon = 0.01
                     # equation 5 in the paper faster rcnn
-                    tx = pos_preds[:, 0] - pos_anchors[:, 0]
-                    ty = pos_preds[:, 1] - pos_anchors[:, 1]
-                    tw = torch.log((pos_preds[:, 2] + epsilon) / pos_anchors[:, 2])
-                    th = torch.log((pos_preds[:, 3] + epsilon) / pos_anchors[:, 3])
-                    t = torch.stack((tx, ty, tw, th), dim=1)
-                    total_t.append(t)
 
-                    gt_bboxes = torch.tensor(gt_bboxes).float().to(device)
-                    matched_bboxes = gt_bboxes[gt_bboxes_indices] / 640
+                    # preds bbox is tx ty tw th
+                    total_t.append(pos_preds[:, :4])
+
+                    gt_bboxes = change_coordinate(gt_bboxes)
+                    gt_bboxes = torch.tensor(gt_bboxes).double().to(device)
+                    matched_bboxes = gt_bboxes[gt_bboxes_indices]
                     gtx = matched_bboxes[:, 0] - pos_anchors[:, 0]
                     gty = matched_bboxes[:, 1] - pos_anchors[:, 1]
                     gtw = torch.log(matched_bboxes[:, 2] / pos_anchors[:, 2])
@@ -167,10 +178,8 @@ class Trainer(object):
                     gt = torch.stack((gtx, gty, gtw, gth), dim=1)
                     total_gt.append(gt)
 
-                    pos_targets = torch.zeros(len(pos_preds), 2).float().to(device)
-                    pos_targets[:, 1] = 1.0
-                    neg_targets = torch.zeros(len(neg_preds), 2).float().to(device)
-                    neg_targets[:, 0] = 1.0
+                    pos_targets = torch.ones(pos_preds.size()[0]).long().to(device)
+                    neg_targets = torch.zeros(neg_preds.size()[0]).long().to(device)
 
                     effective_preds = torch.cat((pos_preds[:, 4:], neg_preds[:, 4:]))
                     targets = torch.cat((pos_targets, neg_targets))
@@ -186,15 +195,15 @@ class Trainer(object):
                 total_targets = torch.cat(total_target)
                 total_effective_pred = torch.cat(total_effective_pred)
 
-                loss_class = 5 * F.binary_cross_entropy(
-                    F.sigmoid(total_effective_pred), total_targets
+                loss_class = 10 * F.cross_entropy(
+                    total_effective_pred, total_targets
                 )
                 loss_reg = F.smooth_l1_loss(total_t, total_gt)
                 loss = loss_class + loss_reg
 
-                total_class_loss += loss_class
-                total_reg_loss += loss_reg
-                total_loss += loss
+                total_class_loss += loss_class.data
+                total_reg_loss += loss_reg.data
+                total_loss += loss.data
 
                 if not index % 1:
                     logging.info(
@@ -209,7 +218,7 @@ class Trainer(object):
                     self.optimizer.step()
 
             logging.info('[{}][epoch:{}] total_class_loss - {} total_reg_loss {} - total_loss {}'.format(
-                mode, self.current_epoch, total_class_loss, total_reg_loss, total_loss
+                mode, self.current_epoch, total_class_loss / total_iter, total_reg_loss / total_iter, total_loss / total_iter
             ))
 
     def persist(self, is_best=False):
