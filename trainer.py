@@ -26,7 +26,7 @@ class Trainer(object):
         logging.basicConfig(filename=log_file, level=logging.DEBUG)
 
         self.optimizer = optimizer
-        self.model = model.double().to(device)
+        self.model = model.float().to(device)
         for m in model.modules():
             if isinstance(m, nn.Conv2d):
                 nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
@@ -121,7 +121,7 @@ class Trainer(object):
 
             for index, (images, all_gt_bboxes, pathes) in enumerate(dataloader):
                 # gt_bboxes: 2-d list of (batch_size, ndarray(bbox_size, 4) )
-                image = images.permute(0, 3, 1, 2).double().to(device)
+                image = images.permute(0, 3, 1, 2).float().to(device)
                 predictions = list(self.model(image))
                 predictions = list(zip(*predictions))
                 for i, prediction in enumerate(predictions):
@@ -154,22 +154,20 @@ class Trainer(object):
 
                     pos_anchors = torch.tensor(
                         change_coordinate(self.anchors[pos_indices])
-                    ).double().to(device)
+                    ).float().to(device)
 
                     neg_anchors = torch.tensor(
                         change_coordinate(self.anchors[neg_indices])
-                    ).double().to(device)
+                    ).float().to(device)
 
                     pos_preds = prediction[pos_indices]
                     neg_preds = prediction[neg_indices]
-
-                    # equation 5 in the paper faster rcnn
 
                     # preds bbox is tx ty tw th
                     total_t.append(pos_preds[:, :4])
 
                     gt_bboxes = change_coordinate(gt_bboxes)
-                    gt_bboxes = torch.tensor(gt_bboxes).double().to(device)
+                    gt_bboxes = torch.tensor(gt_bboxes).float().to(device)
                     matched_bboxes = gt_bboxes[gt_bboxes_indices]
                     gtx = matched_bboxes[:, 0] - pos_anchors[:, 0]
                     gty = matched_bboxes[:, 1] - pos_anchors[:, 1]

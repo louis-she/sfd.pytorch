@@ -14,8 +14,8 @@ if __name__ == "__main__":
 
     train_dataloader = torch.utils.data.DataLoader(
         train_dataset,
-        batch_size=4,
-        num_workers=2,
+        batch_size=8,
+        num_workers=4,
         shuffle=True,
         collate_fn=my_collate_fn
     )
