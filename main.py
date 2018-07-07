@@ -45,7 +45,7 @@ if __name__ == "__main__":
         train_dataloader,
         val_dataloader,
         max_epoch=100,
-        resume=5,
+        resume=None,
         log_dir='/media/louis/ext4/models/sfd'
     )
     trainer.train()

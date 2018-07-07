@@ -4,14 +4,18 @@ import logging
 from time import time
 
 import torch
-from torch import nn
 import torch.nn.functional as F
 import numpy as np
+import torch.utils.model_zoo as model_zoo
+from torch import nn
+
 
 from utils import change_coordinate
 from anchor import generate_anchors, mark_anchors
 
 device = torch.device("cuda")
+
+PRETRAINED_WEIGHTS = "https://download.pytorch.org/models/vgg16-397923af.pth"
 
 class Trainer(object):
 
@@ -27,6 +31,8 @@ class Trainer(object):
 
         self.optimizer = optimizer
         self.model = model.float().to(device)
+        self.model.load_state_dict(model_zoo.load_url(PRETRAINED_WEIGHTS), strict=False)
+
         for m in model.modules():
             if isinstance(m, nn.Conv2d):
                 nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
