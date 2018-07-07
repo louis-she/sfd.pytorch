@@ -53,6 +53,7 @@ class Trainer(object):
         self.anchors = np.vstack(
             list(map(lambda x: np.array(x), generate_anchors()))
         )
+        self.anchors_coord_changed = change_coordinate(self.anchors)
         self.len_anchors = len(self.anchors)
 
         if not self.log_dir:
@@ -127,13 +128,13 @@ class Trainer(object):
 
             for index, (images, all_gt_bboxes, pathes) in enumerate(dataloader):
                 # gt_bboxes: 2-d list of (batch_size, ndarray(bbox_size, 4) )
-                image = images.permute(0, 3, 1, 2).float().to(device)
+                image = images.permute(0, 3, 1, 2).contiguous().float().to(device)
                 predictions = list(self.model(image))
                 predictions = list(zip(*predictions))
                 for i, prediction in enumerate(predictions):
                     prediction = list(prediction)
                     for k, feature_map_prediction in enumerate(prediction):
-                        prediction[k] = feature_map_prediction.view(6, -1).permute(1, 0)
+                        prediction[k] = feature_map_prediction.view(6, -1).permute(1, 0).contiguous()
                     # prediction is 6 x N x 6
                     predictions[i] = torch.cat(prediction)
 
@@ -159,11 +160,11 @@ class Trainer(object):
                     neg_indices = neg_indices[reg_random_indices][:n_neg_indices]
 
                     pos_anchors = torch.tensor(
-                        change_coordinate(self.anchors[pos_indices])
+                        self.anchors_coord_changed[pos_indices]
                     ).float().to(device)
 
                     neg_anchors = torch.tensor(
-                        change_coordinate(self.anchors[neg_indices])
+                        self.anchors_coord_changed[neg_indices]
                     ).float().to(device)
 
                     pos_preds = prediction[pos_indices]
@@ -176,7 +177,7 @@ class Trainer(object):
                     gt_bboxes = torch.tensor(gt_bboxes).float().to(device)
                     matched_bboxes = gt_bboxes[gt_bboxes_indices]
 
-                    gtx = (matched_bboxes[:, 0] - pos_anchors[:, 0]) / pos_anchors[:, 3]
+                    gtx = (matched_bboxes[:, 0] - pos_anchors[:, 0]) / pos_anchors[:, 2]
                     gty = (matched_bboxes[:, 1] - pos_anchors[:, 1]) / pos_anchors[:, 3]
                     gtw = torch.log(matched_bboxes[:, 2] / pos_anchors[:, 2])
                     gth = torch.log(matched_bboxes[:, 3] / pos_anchors[:, 3])
@@ -214,8 +215,8 @@ class Trainer(object):
 
                 if not index % 1:
                     logging.info(
-                        "[{}][epoch:{}][iter:{}][total:{}] loss_class {:.8f} - loss_reg {:.8f}".format(
-                            mode, self.current_epoch, index, total_iter, loss_class, loss_reg
+                        "[{}][epoch:{}][iter:{}][total:{}] loss_class {:.8f} - loss_reg {:.8f} - total {:.8f}".format(
+                            mode, self.current_epoch, index, total_iter, loss_class.data, loss_reg.data, loss.data
                         )
                     )
 
