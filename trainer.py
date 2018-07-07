@@ -202,7 +202,7 @@ class Trainer(object):
                 total_targets = torch.cat(total_target)
                 total_effective_pred = torch.cat(total_effective_pred)
 
-                loss_class = 10 * F.cross_entropy(
+                loss_class = F.cross_entropy(
                     total_effective_pred, total_targets
                 )
                 loss_reg = F.smooth_l1_loss(total_t, total_gt)
