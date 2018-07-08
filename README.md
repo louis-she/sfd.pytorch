@@ -8,6 +8,7 @@ sfd implementation for face recognition in pytorch. Paper at: [SFD: Single Shot 
 
 ## TODOs
 
+- [ ] Evaluation.
 - [ ] Non-maximum suppression at reference.
 - [ ] Image augmentation.
 
@@ -48,7 +49,7 @@ To train with the [wider_face dataset](http://mmlab.ie.cuhk.edu.hk/projects/WIDE
     ├── WIDER_train.zip
     ├── WIDER_val
     │   └── images
-    └── WIDER_val.zip```
+    └── WIDER_val.zip
 ```
 Now in the `config.py`, set the `DATASET_DIR` to the path of `wider_face`, and set the `LOG_DIR` to whatever but a existed directory. Now it's ready to train with the following command,
 
