@@ -11,7 +11,7 @@ from torch import nn
 
 from anchor import generate_anchors, mark_anchors
 from config import Config
-from utils import change_coordinate
+from utils import change_coordinate, seek_model
 
 device = torch.device(Config.DEVICE)
 
@@ -60,20 +60,7 @@ class Trainer(object):
 
         # resume from some model
         if self.resume:
-            candidate_a = os.path.join(self.log_dir, 'models', self.resume)
-            candidate_b = os.path.join(self.log_dir, 'models', 'epoch_{}.pth.tar'.format(self.resume))
-            candidate_c = self.resume
-
-            if os.path.isfile(candidate_a):
-                state_file = candidate_a
-            elif os.path.isfile(candidate_b):
-                state_file = candidate_b
-            elif os.path.isfile(candidate_c):
-                state_file = candidate_c
-            else:
-                raise RuntimeError(
-                    "resume file {} is not found".format(resume)
-                )
+            state_file = seek_model(self.resume)
 
             print("loading checkpoint {}".format(state_file))
             checkpoint = torch.load(state_file)
