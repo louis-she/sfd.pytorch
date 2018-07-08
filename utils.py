@@ -22,7 +22,7 @@ def change_coordinate_inv(coordinates):
     top = (coordinates[:, 1] - coordinates[:, 3] / 2)[:, np.newaxis]
     left = (coordinates[:, 0] - coordinates[:, 2] / 2)[:, np.newaxis]
     bottom = (coordinates[:, 1] + coordinates[:, 3] / 2)[:, np.newaxis]
-    right = (coordinates[:, 0] + coordinates[:, 3] / 2)[:, np.newaxis]
+    right = (coordinates[:, 0] + coordinates[:, 2] / 2)[:, np.newaxis]
     return np.concatenate([top, left, bottom, right], axis=1)
 
 
@@ -51,7 +51,7 @@ def draw_bounding_boxes(image_path, bounding_boxes):
     """draw bounding box on a image, should only be called in
     jupyter notebook context
     """
-    image = cv2.resize(cv2.imread(image_path), (Config.IMAGE_SIZE,) * 2)[:, :, ::-1]
+    image = cv2.imread(image_path)[:, :, ::-1]
     fig, ax = plt.subplots(1)
     for bbox in bounding_boxes:
         rect = patches.Rectangle(
@@ -59,3 +59,14 @@ def draw_bounding_boxes(image_path, bounding_boxes):
             linewidth=1, edgecolor='r', facecolor='none')
         ax.add_patch(rect)
     ax.imshow(image)
+
+def save_bounding_boxes_image(image_path, bounding_boxes, dest):
+    image = cv2.imread(image_path)[:, :, ::-1]
+    fig, ax = plt.subplots(1)
+    for bbox in bounding_boxes:
+        rect = patches.Rectangle(
+            (bbox[1], bbox[0]), bbox[3] - bbox[1], bbox[2] - bbox[0],
+            linewidth=1, edgecolor='r', facecolor='none')
+        ax.add_patch(rect)
+    ax.imshow(image)
+    fig.savefig(dest)
