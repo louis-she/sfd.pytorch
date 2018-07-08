@@ -1,9 +1,11 @@
 import os
 
 import cv2
-import torch
 import numpy as np
+import torch
 from torch.utils.data import Dataset
+
+from config import Config
 
 
 def my_collate_fn(batch):
@@ -14,8 +16,7 @@ def my_collate_fn(batch):
     return images, coordinates, pathes
 
 
-def create_datasets(dataset_dir, skip_invalid=True, skip_occlusion=True,
-                    skip_illumination=False, skip_heavy_blur=True):
+def create_datasets(dataset_dir):
     annotations_dir = os.path.join(dataset_dir, 'wider_face_split')
     val_annotation = os.path.join(annotations_dir, 'wider_face_val_bbx_gt.txt')
     train_annotation = os.path.join(annotations_dir, 'wider_face_train_bbx_gt.txt')
@@ -40,23 +41,31 @@ def create_datasets(dataset_dir, skip_invalid=True, skip_occlusion=True,
                     break
 
                 file_path = lines[cursor][:-1]
-                face_count = int(lines[cursor+1])
-                bboxes = lines[cursor+2:cursor+2+face_count]
+                face_count = int(lines[cursor + 1])
+                bboxes = lines[cursor + 2:cursor + face_count + 2]
 
                 coordinates = []
                 for bbox in bboxes:
                     bbox = bbox.split(' ')
-                    coordinate = (int(bbox[1]), int(bbox[0]), int(bbox[1])+int(bbox[3]), int(bbox[0])+int(bbox[2]))
+                    coordinate = (
+                        int(bbox[1]), int(bbox[0]),
+                        int(bbox[1]) + int(bbox[3]),
+                        int(bbox[0]) + int(bbox[2]))
                     coordinates.append(coordinate)
 
                 processed_annotation.append((
-                    file_path,
-                    coordinates
-                ))
+                    file_path, coordinates))
                 cursor = cursor + 2 + face_count
 
-    train_dataset = FDDBDataset(os.path.join(dataset_dir, 'WIDER_train/images'), train_processed_annotation)
-    validation_dataset = FDDBDataset(os.path.join(dataset_dir, 'WIDER_val/images'), val_processed_annotation)
+    train_dataset = FDDBDataset(
+        os.path.join(dataset_dir, 'WIDER_train/images'),
+        train_processed_annotation,
+        image_size=Config.IMAGE_SIZE)
+
+    validation_dataset = FDDBDataset(
+        os.path.join(dataset_dir, 'WIDER_val/images'),
+        val_processed_annotation,
+        image_size=Config.IMAGE_SIZE)
 
     return train_dataset, validation_dataset
 
@@ -96,8 +105,3 @@ class FDDBDataset(Dataset):
             image = self.transform(image)
 
         return (image, coordinates, file_path)
-
-
-if __name__ == "__main__":
-    a, b = create_datasets('/home/louis/datasets/wider_face')
-    print(a[6])

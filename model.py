@@ -2,14 +2,19 @@ import torch
 import torch.nn.functional as F
 import torch.utils.model_zoo as model_zoo
 from torch import nn
-from torchvision.models.vgg import VGG, make_layers, cfg, vgg16
+from torchvision.models.vgg import VGG, cfg, make_layers, vgg16
 
+from config import Config
+
+device = torch.device(Config.DEVICE)
 
 class Scale(nn.Module):
 
     def __init__(self, initialized_factor):
         super().__init__()
-        self.factor = torch.tensor(initialized_factor, requires_grad=True).float().cuda()
+        self.factor = torch.tensor(
+            initialized_factor, requires_grad=True
+        ).float().to(device)
         self.eps = 1e-10
 
     def forward(self, x):
@@ -21,29 +26,6 @@ class Net(VGG):
 
     def __init__(self):
         super().__init__(make_layers(cfg['D']))
-
-        # self.conv1_1 = self._conv_block(3, 64)
-        # self.conv1_2 = self._conv_block(64, 64)
-        # self.pool1 = nn.MaxPool2d(kernel_size=2, stride=2)
-
-        # self.conv2_1 = self._conv_block(64, 128)
-        # self.conv2_2 = self._conv_block(128, 128)
-        # self.pool2 = nn.MaxPool2d(kernel_size=2, stride=2)
-
-        # self.conv3_1 = self._conv_block(128, 256)
-        # self.conv3_2 = self._conv_block(256, 256)
-        # self.conv3_3 = self._conv_block(256, 256)
-        # self.pool3 = nn.MaxPool2d(kernel_size=2, stride=2)
-
-        # self.conv4_1 = self._conv_block(256, 512)
-        # self.conv4_2 = self._conv_block(512, 512)
-        # self.conv4_3 = self._conv_block(512, 512)
-        # self.pool4 = nn.MaxPool2d(kernel_size=2, stride=2)
-
-        # self.conv5_1 = self._conv_block(512, 512)
-        # self.conv5_2 = self._conv_block(512, 512)
-        # self.conv5_3 = self._conv_block(512, 512)
-        # self.pool5 = nn.MaxPool2d(kernel_size=2, stride=2)
 
         self.pool5 = self.features[30]
         self.conv_fc6 = self._conv_block(512, 1024)
@@ -59,7 +41,7 @@ class Net(VGG):
         self.norm4_3 = Scale(8)
         self.norm5_3 = Scale(5)
 
-        self.predict3_3 = nn.Conv2d(256, 6, kernel_size=3, padding=1) #TODO: maxout?
+        self.predict3_3 = nn.Conv2d(256, 6, kernel_size=3, padding=1)
         self.predict4_3 = nn.Conv2d(512, 6, kernel_size=3, padding=1)
         self.predict5_3 = nn.Conv2d(512, 6, kernel_size=3, padding=1)
         self.predict_fc7 = nn.Conv2d(1024, 6, kernel_size=3, padding=1)
@@ -87,7 +69,7 @@ class Net(VGG):
         f6 = self.conv7_2(x)
 
         return [
-            # F.relu(self.predict3_3(f1)), # TODO: 这一层的输出建议不用
+            # F.relu(self.predict3_3(f1)), # ignore the first layer
             self.predict4_3(self.norm4_3(f2)),
             self.predict5_3(self.norm5_3(f3)),
             self.predict_fc7(f4),
@@ -99,6 +81,5 @@ class Net(VGG):
         return nn.Sequential(
             nn.Conv2d(in_channel, out_channel, kernel_size=kernel,
                       padding=kernel // 2, stride=stride),
-            # nn.BatchNorm2d(out_channel),
             nn.ReLU(inplace=True)
         )

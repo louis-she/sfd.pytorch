@@ -1,5 +1,6 @@
 import numpy as np
 
+
 def generate_anchors(anchor_stride=[8, 16, 32, 64, 128],
                      anchor_size=[32, 64, 128, 256, 512],
                      image_size=640):
@@ -30,7 +31,7 @@ def generate_anchors(anchor_stride=[8, 16, 32, 64, 128],
 
 
 def mark_anchors(anchors, gt_boxes, positive_threshold=0.5,
-                 negative_threshold=0.1):
+                 negative_threshold=0.1, least_pos_num=50):
     """IoU larger than positive_threshold is positive anchors,
     less than negative_threshold is negative anchors. (Obviousely, this
     comment is trash talk...)
@@ -45,14 +46,12 @@ def mark_anchors(anchors, gt_boxes, positive_threshold=0.5,
     positive_iou = iou[positive_anchor_indices]
     matched_gt_box_indices = positive_iou.argmax(axis=1)
 
-    # if matched anchors is not enough, do the sort and pick top N trick.
-    # N is the average number of matching anchors when the anchors are
-    # enough. I randomly pick 500 images from the dataset and do anchor march,
-    # the average number is about 150.
-    if len(matched_gt_box_indices) < 50:
+    # if matched anchors is not enough(less than least_pos_num),
+    # do the sort and pick top least_pos_num trick.
+    if len(matched_gt_box_indices) < least_pos_num:
         # anyway, 0.1 is the bottom line
         allowed_positive_anchor_indices = np.where(max_iou > 0.2)[0]
-        top_n_sorted_indices = np.argsort(max_iou)[::-1][:50]
+        top_n_sorted_indices = np.argsort(max_iou)[::-1][:least_pos_num]
 
         # get the intersect of the 2 array
         positive_anchor_indices = np.intersect1d(
@@ -90,19 +89,3 @@ def compute_iou(anchors, gt_boxes):
            intersect
 
     return (intersect / unit).reshape(len_anchors, len_gt_boxes)
-
-if __name__ == "__main__":
-    anchors = np.array((
-        (1, 1, 3, 3),
-        (3, 4, 6, 7),
-        (4, 3, 6, 6)
-    ))
-
-    gt_boxes = np.array((
-        (2, 2, 5, 5),
-        (4, 3, 6, 5),
-        (4, 3, 6, 5)
-    ))
-
-    print(mark_anchors(anchors, gt_boxes))
-

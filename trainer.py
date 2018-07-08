@@ -1,21 +1,19 @@
+import logging
 import os
 import sys
-import logging
 from time import time
 
+import numpy as np
 import torch
 import torch.nn.functional as F
-import numpy as np
 import torch.utils.model_zoo as model_zoo
 from torch import nn
 
-
-from utils import change_coordinate
 from anchor import generate_anchors, mark_anchors
+from config import Config
+from utils import change_coordinate
 
-device = torch.device("cuda")
-
-PRETRAINED_WEIGHTS = "https://download.pytorch.org/models/vgg16-397923af.pth"
+device = torch.device(Config.DEVICE)
 
 class Trainer(object):
 
@@ -23,45 +21,44 @@ class Trainer(object):
                  validation_dataloader, log_dir=False, max_epoch=100,
                  resume=False, persist_stride=1, verbose=False):
 
-        # debug
+        self.start_epoch = 1
+        self.current_epoch = 1
+
         self.verbose = verbose
+        self.max_epoch = max_epoch
+        self.persist_stride = persist_stride
+
+        # initialize log
         self.log_dir = log_dir
         log_file = os.path.join(self.log_dir, 'log.txt')
         logging.basicConfig(filename=log_file, level=logging.DEBUG)
-
-        self.optimizer = optimizer
-        self.model = model.float().to(device)
-        self.model.load_state_dict(model_zoo.load_url(PRETRAINED_WEIGHTS), strict=False)
-
-        for m in model.modules():
-            if isinstance(m, nn.Conv2d):
-                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
-            elif isinstance(m, nn.BatchNorm2d):
-                nn.init.constant_(m.weight, 1)
-                nn.init.constant_(m.bias, 0)
-
-        self.max_epoch = max_epoch
-        if resume:
-            self.resume = str(resume)
-        else:
-            self.resume = False
-        self.persist_stride = persist_stride
-        self.training_dataloader = training_dataloader
-        self.validation_dataloader = validation_dataloader
-        self.start_epoch = 1
-        self.current_epoch = 1
-        self.anchors = np.vstack(
-            list(map(lambda x: np.array(x), generate_anchors()))
-        )
-        self.anchors_coord_changed = change_coordinate(self.anchors)
-        self.len_anchors = len(self.anchors)
-
         if not self.log_dir:
             self.log_dir = os.path.join(os.path.dirname(
                 os.path.realpath(__file__)), 'logs')
         if not os.path.isdir(self.log_dir):
             os.mkdir(self.log_dir)
 
+        # initialize model
+        self.optimizer = optimizer
+        self.model = model.float().to(device)
+        self.model.load_state_dict(model_zoo.load_url(Config.VGG16_PRETRAINED_WEIGHTS), strict=False)
+        self.resume = str(resume) if resume else False
+
+        self.training_dataloader = training_dataloader
+        self.validation_dataloader = validation_dataloader
+
+        # initialize anchors
+        self.anchors = np.vstack(
+            list(map(lambda x: np.array(x), generate_anchors(
+                Config.ANCHOR_STRIDE,
+                Config.ANCHOR_SIZE,
+                Config.IMAGE_SIZE
+            )))
+        )
+        self.anchors_coord_changed = change_coordinate(self.anchors)
+        self.len_anchors = len(self.anchors)
+
+        # resume from some model
         if self.resume:
             candidate_a = os.path.join(self.log_dir, 'models', self.resume)
             candidate_b = os.path.join(self.log_dir, 'models', 'epoch_{}.pth.tar'.format(self.resume))
@@ -89,28 +86,10 @@ class Trainer(object):
     def train(self):
         for self.current_epoch in range(self.start_epoch, self.max_epoch+1):
             self.run_epoch(mode='train')
-            if self.validation_dataloader:
-                self.run_epoch(mode='validate')
             if not (self.current_epoch % self.persist_stride):
                 self.persist()
-
-    def mark(self, checkpoint, reset=False):
-        if self.verbose:
-            torch.cuda.synchronize()
-            if reset:
-                self.execute_time = time()
-                self.time_log = []
-            self.time_log.append((checkpoint, time() - self.execute_time))
-
-    def execute_info(self):
-        if self.verbose:
-            last_time = 0
-            for log in self.time_log:
-                current_time = log[1]
-                checkpoint = log[0]
-                time_span = current_time - last_time
-                print("{} ==> {}".format(time_span, checkpoint))
-                last_time = current_time
+            if self.validation_dataloader:
+                self.run_epoch(mode='validate')
 
     def run_epoch(self, mode):
         if mode == 'train':
@@ -126,19 +105,18 @@ class Trainer(object):
             total_loss = 0
             total_iter = len(dataloader)
 
-            for index, (images, all_gt_bboxes, pathes) in enumerate(dataloader):
+            for index, (images, all_gt_bboxes, _) in enumerate(dataloader):
                 # gt_bboxes: 2-d list of (batch_size, ndarray(bbox_size, 4) )
-                image = images.permute(0, 3, 1, 2).contiguous().float().to(device)
-                predictions = list(self.model(image))
-                predictions = list(zip(*predictions))
+                image = images.permute(0, 3, 1, 2).contiguous()\
+                                .float().to(device)
+
+                predictions = list(zip(*list(self.model(image))))
                 for i, prediction in enumerate(predictions):
                     prediction = list(prediction)
                     for k, feature_map_prediction in enumerate(prediction):
-                        prediction[k] = feature_map_prediction.view(6, -1).permute(1, 0).contiguous()
-                    # prediction is 6 x N x 6
+                        prediction[k] = feature_map_prediction.view(6, -1) \
+                                .permute(1, 0).contiguous()
                     predictions[i] = torch.cat(prediction)
-
-                # predictions elements is 6 x anchor_size(34125 this case)
 
                 total_t = []
                 total_gt = []
@@ -146,16 +124,19 @@ class Trainer(object):
                 total_target = []
                 for i, prediction in enumerate(predictions):
                     gt_bboxes = all_gt_bboxes[i]
-                    # pick up positive and negative anchors
-                    pos_indices, gt_bboxes_indices, neg_indices = \
-                        mark_anchors(self.anchors, gt_bboxes)
 
-                    # in case of no positive anchors
+                    pos_indices, gt_bboxes_indices, neg_indices = \
+                        mark_anchors(self.anchors, gt_bboxes,
+                                     positive_threshold=Config.POSITIVE_ANCHOR_THRESHOLD,
+                                     negative_threshold=Config.NEGATIVE_ANCHOR_THRESHOLD,
+                                     least_pos_num=Config.LEAST_POSITIVE_ANCHOR_NUM)
+
+                    # in very rare case of no positive anchors
                     if len(pos_indices) == 0:
                         continue
 
                     # make samples of negative to positive 3:1
-                    n_neg_indices = len(pos_indices) * 3
+                    n_neg_indices = len(pos_indices) * Config.NEG_POS_ANCHOR_NUM_RATIO
                     reg_random_indices = torch.randperm(len(neg_indices))
                     neg_indices = neg_indices[reg_random_indices][:n_neg_indices]
 
@@ -196,8 +177,10 @@ class Trainer(object):
                     total_effective_pred.append(effective_preds)
                     total_target.append(targets)
 
+                # in very rare case of no positive anchors
                 if len(total_t) == 0:
                     continue
+
                 total_t = torch.cat(total_t)
                 total_gt = torch.cat(total_gt)
                 total_targets = torch.cat(total_target)
@@ -213,7 +196,7 @@ class Trainer(object):
                 total_reg_loss += loss_reg.data
                 total_loss += loss.data
 
-                if not index % 1:
+                if not index % Config.LOSS_LOG_STRIDE:
                     logging.info(
                         "[{}][epoch:{}][iter:{}][total:{}] loss_class {:.8f} - loss_reg {:.8f} - total {:.8f}".format(
                             mode, self.current_epoch, index, total_iter, loss_class.data, loss_reg.data, loss.data
