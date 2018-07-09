@@ -25,3 +25,6 @@ class Config(object):
     ANCHOR_STRIDE = [8, 16, 32, 64, 128]
     ANCHOR_SIZE = [32, 64, 128, 256, 512]
     NEG_POS_ANCHOR_NUM_RATIO = 3
+    
+    # nms threshold
+    NMS_THRESHOLD = 0.3
