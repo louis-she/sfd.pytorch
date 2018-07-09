@@ -83,11 +83,12 @@ def nms(bboxes_scores, thresh=Config.NMS_THRESHOLD):
         i = order[0]
         keep_index.append(i) 
 
+        #xx1,yy1,xx2,yy2 = [np.maximum(j[i], j[order[1:]]) for j in (x1,y1,x2,y2)]
+        
         xx1 = np.maximum(x1[i], x1[order[1:]])
         yy1 = np.maximum(y1[i], y1[order[1:]])
         xx2 = np.minimum(x2[i], x2[order[1:]])
         yy2 = np.minimum(y2[i], y2[order[1:]])
-
         w = np.maximum(0.0, xx2 - xx1 + 1)
         h = np.maximum(0.0, yy2 - yy1 + 1)
         inter = w * h

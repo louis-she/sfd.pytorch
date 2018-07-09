@@ -3,8 +3,8 @@ class Config(object):
     DEVICE = 'cuda'
 
     # pathes
-    DATASET_DIR = '/home/pengbo/project/datasets/wider_face'
-    LOG_DIR = '/home/pengbo/project/models/sfd'
+    DATASET_DIR = '/home/xxx/project/datasets/wider_face'
+    LOG_DIR = '/home/xxx/project/models/sfd'
 
     # training && log controls
     MODEL_SAVE_STRIDE = 1

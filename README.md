@@ -8,10 +8,12 @@ sfd implementation for face recognition in pytorch. Paper at: [SFD: Single Shot 
 
 ## TODOs
 
+- [x] Training on wider faces
+- [x] Inference tools and API
+- [x] Non-maximum suppression at reference.
 - [ ] Evaluation.
-- [ ] Non-maximum suppression at reference.
 - [ ] Image augmentation.
-
+- [ ] Multi-class detection.
 ## Detection
 
 The `detector.py` is executable and programmable, see `inference.ipynb` for a quick look at how to use the detector API. Using the following command for directly use it in the command line.
@@ -22,7 +24,7 @@ python3 detector.py --image ./image/test.jpg --model ./epoch_41.pth.tar
 
 The trained model `epoch_41.pth.tar` can be downloaded from [Baidu Yun](https://pan.baidu.com/s/1hC0GJh98UPZMrNhI_8jbVg) or [Google Drive](https://drive.google.com/open?id=1d8J_GWdez-AZ3oHifmOgKkr8ljWudy2D).
 
-The detector will draw 200 bounding boxes together(without NMS) and the result is showing bellow
+The detector will draw 200 bounding boxes together and the result is showing bellow
 
 ![](images/show-case.png)
 
