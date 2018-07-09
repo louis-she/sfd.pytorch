@@ -82,8 +82,6 @@ def nms(bboxes_scores, thresh=Config.NMS_THRESHOLD):
     while order.size > 0:
         i = order[0]
         keep_index.append(i) 
-
-        #xx1,yy1,xx2,yy2 = [np.maximum(j[i], j[order[1:]]) for j in (x1,y1,x2,y2)]
         
         xx1 = np.maximum(x1[i], x1[order[1:]])
         yy1 = np.maximum(y1[i], y1[order[1:]])
