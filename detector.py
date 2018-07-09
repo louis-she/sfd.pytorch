@@ -9,7 +9,7 @@ import torch
 from anchor import generate_anchors
 from config import Config
 from model import Net
-from utils import change_coordinate, change_coordinate_inv, seek_model, save_bounding_boxes_image
+from utils import change_coordinate, change_coordinate_inv, seek_model, save_bounding_boxes_image, nms
 
 device = torch.device(Config.DEVICE)
 
@@ -39,11 +39,10 @@ class Detector(object):
 
         # get sorted indices by score
         diff = predictions[:, 5] - predictions[:, 4]
-        _, indices = torch.sort(diff, descending=True)
-
+        scores, indices = torch.sort(diff, descending=True)
         # sort and slice predictions
         predictions = predictions[indices][:self.keep]
-
+        scores = scores[:self.keep]
         # generate anchors then sort and slice
         anchor_configs = (
             Config.ANCHOR_STRIDE,
@@ -62,11 +61,12 @@ class Detector(object):
 
         bounding_boxes = torch.stack((x, y, w, h), dim=1).cpu().data.numpy()
         bounding_boxes = change_coordinate_inv(bounding_boxes)
-
+        scores = scores.cpu().data.numpy()
+        bboxes_scores = np.hstack((bounding_boxes,np.array([scores]).T))
         # TODO: do non-maximum suppression for bounding_boxes here
-
-        return bounding_boxes
-
+        keep = nms(bboxes_scores)
+        
+        return bounding_boxes[keep]
 
 def main(args):
     print('predicted bounding boxes of faces:')
