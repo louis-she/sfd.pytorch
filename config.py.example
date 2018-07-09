@@ -3,12 +3,12 @@ class Config(object):
     DEVICE = 'cuda'
 
     # pathes
-    DATASET_DIR = '/home/louis/datasets/wider_face'
-    LOG_DIR = '/media/louis/ext4/models/sfd'
+    DATASET_DIR = '/home/xxx/project/datasets/wider_face'
+    LOG_DIR = '/home/xxx/project/models/sfd'
 
     # training && log controls
     MODEL_SAVE_STRIDE = 1
-    BATCH_SIZE = 8
+    BATCH_SIZE = 2
     RESUME_FROM = False  # epoch number, model file name or path are all OK
     LEARNING_RATE = 0.001
     WEIGHT_DECAY = 0.0001
