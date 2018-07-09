@@ -24,7 +24,7 @@ python3 detector.py --image ./image/test.jpg --model ./epoch_41.pth.tar
 
 The trained model `epoch_41.pth.tar` can be downloaded from [Baidu Yun](https://pan.baidu.com/s/1hC0GJh98UPZMrNhI_8jbVg) or [Google Drive](https://drive.google.com/open?id=1d8J_GWdez-AZ3oHifmOgKkr8ljWudy2D).
 
-The detector will draw 200 bounding boxes together and the result is showing bellow
+The detector will draw bounding boxes and the result is showing bellow
 
 ![](images/show-case.png)
 
