@@ -71,7 +71,7 @@ def save_bounding_boxes_image(image_path, bounding_boxes, dest):
     ax.imshow(image)
     fig.savefig(dest)
 
-def nms(bboxes_scores, thresh=0.3):
+def nms(bboxes_scores, thresh=Config.NMS_THRESHOLD):
 
     [x1,y1,x2,y2,scores] = [bboxes_scores[:, i] for i in range(5)]
     order = scores.argsort()[::-1]
