@@ -24,9 +24,9 @@ def extract_info(annotation_path,classes='person'):
     for i in root.findall('object'):
         if i.find('name').text == classes:
             xmin = i.find('bndbox').find('xmin').text
-            ymin = i.find('bndbox').find('xmin').text
-            xmax = i.find('bndbox').find('xmin').text
-            ymax = i.find('bndbox').find('xmin').text
+            ymin = i.find('bndbox').find('ymin').text
+            xmax = i.find('bndbox').find('xmax').text
+            ymax = i.find('bndbox').find('ymax').text
             #width = int(xmax) - int(xmin)
             #height = int(ymax) - int(ymin)
             coordinate = (xmin,ymin,xmax,ymax)
@@ -84,6 +84,7 @@ class VOCDataset(Dataset):
         file_path, coordinates = self.annotation[index]
         file_path = os.path.join(self.images_dir, file_path)
         image = self.__image_loader(file_path)
+        print(file_path)
 
         # scale coordinate
         height, width = image.shape[:2]
