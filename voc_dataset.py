@@ -27,8 +27,7 @@ def extract_info(annotation_path,classes=Config.VOC_CLASS):
             ymin = i.find('bndbox').find('ymin').text
             xmax = i.find('bndbox').find('xmax').text
             ymax = i.find('bndbox').find('ymax').text
-            #width = int(xmax) - int(xmin)
-            #height = int(ymax) - int(ymin)
+
             try:
                 coordinate = (int(xmin),int(ymin),int(xmax),int(ymax))
                 coordinates.append(coordinate)
@@ -43,7 +42,6 @@ def create_voc_datasets(voc_dataset_dir,split_ratio=0.2):
     data_dir = os.path.join(voc_dataset_dir,'JPEGImages')
     processed_annotation = []
     imgs = os.listdir(data_dir)
-    #train_imgs, val_imgs = train_test_split(imgs, test_size=0.2)
     
     coordinates = []
 
