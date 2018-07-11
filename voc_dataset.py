@@ -16,7 +16,7 @@ def my_collate_fn(batch):
 
     return images, coordinates, pathes
 
-def extract_info(annotation_path,classes='person'):
+def extract_info(annotation_path,classes=Config.VOC_CLASS):
     tree = ET.parse(annotation_path)
     root = tree.getroot()
     file_path = root.findall('filename')[0].text
