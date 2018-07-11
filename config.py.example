@@ -9,7 +9,10 @@ class Config(object):
 
     # datasets
     DATASETS = 'WF' # currently support 'WF' and 'VOC'
-    
+
+    # VOC datasets utilities
+    VOC_CLASS = 'person'
+
     # training && log controls
     MODEL_SAVE_STRIDE = 1
     BATCH_SIZE = 2
