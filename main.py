@@ -1,14 +1,24 @@
 import torch
-
+import sys
 from config import Config
-from dataset import create_datasets, my_collate_fn
+from dataset import create_wf_datasets, my_collate_fn
+from voc_dataset import create_voc_datasets
 from model import Net
 from trainer import Trainer
 
 
 def main():
-    train_dataset, val_dataset = create_datasets(Config.DATASET_DIR)
-
+    if Config.DATASETS == 'VOC':
+        train_dataset, val_dataset = create_voc_datasets(Config.VOC_DATASET_DIR)
+    elif Config.DATASETS == 'WF':
+        train_dataset, val_dataset = create_wf_datasets(Config.WF_DATASET_DIR)
+    else:
+        print('#########################################')
+        print('Select the dataset to train in config.py.')
+        print('#########################################')
+       
+        sys.exit()
+    
     train_dataloader = torch.utils.data.DataLoader(
         train_dataset,
         batch_size=Config.BATCH_SIZE,
