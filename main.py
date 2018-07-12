@@ -16,9 +16,9 @@ def main():
         print('#########################################')
         print('Select the dataset to train in config.py.')
         print('#########################################')
-       
+
         sys.exit()
-    
+
     train_dataloader = torch.utils.data.DataLoader(
         train_dataset,
         batch_size=Config.BATCH_SIZE,

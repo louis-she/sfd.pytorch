@@ -85,7 +85,6 @@ def compute_iou(anchors, gt_boxes):
     intersect = np.maximum((y2 - y1), y_zeros) * np.maximum((x2 - x1), x_zeros)
 
     unit = (anchors[:, 2] - anchors[:, 0]) * (anchors[:, 3] - anchors[:, 1]) + \
-           (gt_boxes[:, 2] - gt_boxes[:, 0]) * (gt_boxes[:, 3] - gt_boxes[:, 1]) - \
-           intersect
+           (gt_boxes[:, 2] - gt_boxes[:, 0]) * (gt_boxes[:, 3] - gt_boxes[:, 1]) - intersect
 
     return (intersect / unit).reshape(len_anchors, len_gt_boxes)
