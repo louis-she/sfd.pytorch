@@ -16,7 +16,7 @@ def my_collate_fn(batch):
     return images, coordinates, pathes
 
 
-def create_datasets(dataset_dir):
+def create_wf_datasets(dataset_dir):
     annotations_dir = os.path.join(dataset_dir, 'wider_face_split')
     val_annotation = os.path.join(annotations_dir, 'wider_face_val_bbx_gt.txt')
     train_annotation = os.path.join(annotations_dir, 'wider_face_train_bbx_gt.txt')

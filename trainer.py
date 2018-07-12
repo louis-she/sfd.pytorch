@@ -15,6 +15,7 @@ from utils import change_coordinate, seek_model
 
 device = torch.device(Config.DEVICE)
 
+
 class Trainer(object):
 
     def __init__(self, optimizer, model, training_dataloader,
@@ -71,7 +72,7 @@ class Trainer(object):
                 state_file, self.current_epoch))
 
     def train(self):
-        for self.current_epoch in range(self.start_epoch, self.max_epoch+1):
+        for self.current_epoch in range(self.start_epoch, self.max_epoch + 1):
             self.run_epoch(mode='train')
             if not (self.current_epoch % self.persist_stride):
                 self.persist()
@@ -95,14 +96,14 @@ class Trainer(object):
             for index, (images, all_gt_bboxes, _) in enumerate(dataloader):
                 # gt_bboxes: 2-d list of (batch_size, ndarray(bbox_size, 4) )
                 image = images.permute(0, 3, 1, 2).contiguous()\
-                                .float().to(device)
+                    .float().to(device)
 
                 predictions = list(zip(*list(self.model(image))))
                 for i, prediction in enumerate(predictions):
                     prediction = list(prediction)
                     for k, feature_map_prediction in enumerate(prediction):
                         prediction[k] = feature_map_prediction.view(6, -1) \
-                                .permute(1, 0).contiguous()
+                            .permute(1, 0).contiguous()
                     predictions[i] = torch.cat(prediction)
 
                 total_t = []
@@ -129,10 +130,6 @@ class Trainer(object):
 
                     pos_anchors = torch.tensor(
                         self.anchors_coord_changed[pos_indices]
-                    ).float().to(device)
-
-                    neg_anchors = torch.tensor(
-                        self.anchors_coord_changed[neg_indices]
                     ).float().to(device)
 
                     pos_preds = prediction[pos_indices]
