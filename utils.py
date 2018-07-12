@@ -41,7 +41,7 @@ def seek_model(file_name):
         state_file = candidate_c
     else:
         raise RuntimeError(
-            "model file {} is not found".format(resume)
+            "model file {} is not found".format(file_name)
         )
 
     return state_file
@@ -52,13 +52,14 @@ def draw_bounding_boxes(image_path, bounding_boxes):
     jupyter notebook context
     """
     image = cv2.imread(image_path)[:, :, ::-1]
-    fig, ax = plt.subplots(1)
+    _, ax = plt.subplots(1)
     for bbox in bounding_boxes:
         rect = patches.Rectangle(
             (bbox[1], bbox[0]), bbox[3] - bbox[1], bbox[2] - bbox[0],
             linewidth=1, edgecolor='r', facecolor='none')
         ax.add_patch(rect)
     ax.imshow(image)
+
 
 def save_bounding_boxes_image(image_path, bounding_boxes, dest):
     image = cv2.imread(image_path)[:, :, ::-1]
@@ -71,9 +72,10 @@ def save_bounding_boxes_image(image_path, bounding_boxes, dest):
     ax.imshow(image)
     fig.savefig(dest)
 
+
 def nms(bboxes_scores, thresh=Config.NMS_THRESHOLD):
 
-    [x1,y1,x2,y2,scores] = [bboxes_scores[:, i] for i in range(5)]
+    [x1, y1, x2, y2, scores] = [bboxes_scores[:, i] for i in range(5)]
     order = scores.argsort()[::-1]
 
     areas = (x2 - x1 + 1) * (y2 - y1 + 1)
@@ -81,8 +83,8 @@ def nms(bboxes_scores, thresh=Config.NMS_THRESHOLD):
 
     while order.size > 0:
         i = order[0]
-        keep_index.append(i) 
-        
+        keep_index.append(i)
+
         xx1 = np.maximum(x1[i], x1[order[1:]])
         yy1 = np.maximum(y1[i], y1[order[1:]])
         xx2 = np.minimum(x2[i], x2[order[1:]])
@@ -92,7 +94,7 @@ def nms(bboxes_scores, thresh=Config.NMS_THRESHOLD):
         inter = w * h
 
         ovr = inter / (areas[i] + areas[order[1:]] - inter)
-        
+
         inds = np.where(ovr <= thresh)[0]
         order = order[inds + 1]
 
