@@ -3,8 +3,15 @@ class Config(object):
     DEVICE = 'cuda'
 
     # pathes
-    DATASET_DIR = '/home/xxx/project/datasets/wider_face'
+    VOC_DATASET_DIR = '/home/xxx/project/datasets/VOC2012'
+    WF_DATASET_DIR = '/home/xxx/project/datasets/wider_face'
     LOG_DIR = '/home/xxx/project/models/sfd'
+
+    # datasets
+    DATASETS = 'WF' # currently support 'WF' and 'VOC'
+
+    # VOC datasets utilities
+    VOC_CLASS = 'person'
 
     # training && log controls
     MODEL_SAVE_STRIDE = 1
