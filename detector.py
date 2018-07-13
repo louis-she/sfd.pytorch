@@ -16,11 +16,11 @@ device = torch.device(Config.DEVICE)
 
 class Detector(object):
 
-    def __init__(self, model, image_size=Config.IMAGE_SIZE, keep=200):
+    def __init__(self, model, image_size=Config.IMAGE_SIZE, threshold=Config.PREDICTION_THRESHOLD):
         checkpoint = torch.load(seek_model(model))
         self.model = Net().to(device)
         self.model.load_state_dict(checkpoint['state_dict'], strict=True)
-        self.keep = keep
+        self.threshold = threshold
         self.image_size = image_size
 
     def infer(self, image):
@@ -39,10 +39,11 @@ class Detector(object):
 
         # get sorted indices by score
         diff = predictions[:, 5] - predictions[:, 4]
-        scores, indices = torch.sort(diff, descending=True)
-        # sort and slice predictions
-        predictions = predictions[indices][:self.keep]
-        scores = scores[:self.keep]
+        scores, sorted_indices = torch.sort(diff, descending=True)
+        valid_indices = scores > self.threshold
+        scores = scores[valid_indices]
+
+        predictions = predictions[sorted_indices][valid_indices]
         # generate anchors then sort and slice
         anchor_configs = (
             Config.ANCHOR_STRIDE,
@@ -52,7 +53,7 @@ class Detector(object):
         anchors = change_coordinate(np.vstack(
             list(map(lambda x: np.array(x), generate_anchors(*anchor_configs)))
         ))
-        anchors = torch.tensor(anchors[indices][:self.keep]).float().to(device)
+        anchors = torch.tensor(anchors)[sorted_indices][valid_indices].float().to(device)
 
         x = (predictions[:, 0] * anchors[:, 2] + anchors[:, 0]) * scale[1]
         y = (predictions[:, 1] * anchors[:, 3] + anchors[:, 1]) * scale[0]
@@ -62,10 +63,11 @@ class Detector(object):
         bounding_boxes = torch.stack((x, y, w, h), dim=1).cpu().data.numpy()
         bounding_boxes = change_coordinate_inv(bounding_boxes)
         scores = scores.cpu().data.numpy()
-        bboxes_scores = np.hstack((bounding_boxes,np.array([scores]).T))
-        # TODO: do non-maximum suppression for bounding_boxes here
+        bboxes_scores = np.hstack((bounding_boxes, np.array([scores]).T))
+
+        # nms
         keep = nms(bboxes_scores)
-        
+
         return bounding_boxes[keep]
 
 def main(args):
