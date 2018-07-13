@@ -23,6 +23,16 @@ class Detector(object):
         self.threshold = threshold
         self.image_size = image_size
 
+    def forward(self, batched_data):
+        """do only forward with self.model
+
+        Args:
+            batched_data (tensor): should be the images yield by the dataset
+                object.
+        Returns: output of the self.model(batched_data), without any modifications.
+        """
+        return self.model(batched_data)
+
     def infer(self, image):
         image = cv2.imread(image)
         scale = (image.shape[0] / self.image_size,
