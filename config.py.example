@@ -3,9 +3,9 @@ class Config(object):
     DEVICE = 'cuda'
 
     # pathes
-    VOC_DATASET_DIR = '/home/xxx/project/datasets/VOC2012'
-    WF_DATASET_DIR = '/home/xxx/project/datasets/wider_face'
-    LOG_DIR = '/home/xxx/project/models/sfd'
+    VOC_DATASET_DIR = '/datasets/VOC2012'
+    WF_DATASET_DIR = '/datasets/wider_face'
+    LOG_DIR = '/log/models/sfd'
 
     # datasets
     DATASETS = 'WF' # currently support 'WF' and 'VOC'
