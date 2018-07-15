@@ -12,8 +12,9 @@ def my_collate_fn(batch):
     images = torch.stack(list(map(lambda x: torch.tensor(x[0]).double(), batch)))
     coordinates = list(map(lambda x: x[1], batch))
     pathes = list(map(lambda x: x[2], batch))
+    scale = np.array(list(map(lambda x: x[3], batch)))
 
-    return images, coordinates, pathes
+    return images, coordinates, pathes, scale
 
 
 def create_wf_datasets(dataset_dir):
@@ -50,7 +51,8 @@ def create_wf_datasets(dataset_dir):
                     coordinate = (
                         int(bbox[1]), int(bbox[0]),
                         int(bbox[1]) + int(bbox[3]),
-                        int(bbox[0]) + int(bbox[2]))
+                        int(bbox[0]) + int(bbox[2]),
+                        1)  # one represents the class of face
                     coordinates.append(coordinate)
 
                 processed_annotation.append((
@@ -97,11 +99,12 @@ class FDDBDataset(Dataset):
             x[0] * height_scale,
             x[1] * width_scale,
             x[2] * height_scale,
-            x[3] * width_scale
+            x[3] * width_scale,
+            x[4]
         ], coordinates)))
         image = cv2.resize(image, (self.image_size, self.image_size))
 
         if self.transform:
             image = self.transform(image)
 
-        return (image, coordinates, file_path)
+        return (image, coordinates, file_path, (1 / height_scale, 1 / width_scale))

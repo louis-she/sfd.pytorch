@@ -1,5 +1,6 @@
 import numpy as np
 from anchor import compute_iou
+import torch
 
 
 def AP(prediction, gt, iou_threshold):
@@ -7,10 +8,11 @@ def AP(prediction, gt, iou_threshold):
     (top left bottom right)
 
     Args:
-        predict_bboxes (ndarray): should be a N * (4 + K) ndarray
+        predict_bboxes (ndarray): should be a N * (4 + 1 + 1) ndarray
             N is number of boxes been predicted(batch_size),
             4 represents [top, left, bottom, right],
-            K is the score of every class, len(K) equals to class number
+            1 is the confidence of the class
+            1 is the number represents the class
         gt_bboxes (ndarray): should be a M * (4 + 1) ndarray
             M is the number of ground truth bboxes of that image
             4 represents [top, left, bottom, right],
@@ -24,24 +26,23 @@ def AP(prediction, gt, iou_threshold):
     """
     # apply softmax for prediction[:, 4:], get the highest index and klass
     bboxes = prediction[:, :4]
-    scores = softmax(prediction[:, 4:])
-    klasses = np.argmax(scores, axis=1)
-    scores = scores[np.arange(len(scores)), klasses]
+    scores = prediction[:, 4]
+    klasses = prediction[:, 5]
 
     # sort klass, scores, bboxes by value of scores
-    sorted_indices = np.argsort(scores)[::-1]
-    scores = scores[sorted_indices]
-    klasses = klasses[sorted_indices]
-    bboxes = bboxes[sorted_indices]
+    inds = np.argsort(scores)[::-1]
+    scores, klasses, bboxes = scores[inds], klasses[inds], bboxes[inds]
 
-    # get a list `result` of tp and fp, length should be the same as bboxes
+    # get a list result of tp and fp, length should be the same as bboxes
     result = np.zeros(len(bboxes))
     matched_index = []
+
     ious = compute_iou(bboxes, gt[:, :4])
     for index, iou in enumerate(ious):
         gt_index = np.argmax(iou)
-        if iou[gt_index] > iou_threshold and gt_index not in matched_index \
-                and gt_index == gt[gt_index, 5]:
+        if iou[gt_index] > iou_threshold \
+                and gt_index not in matched_index \
+                and klasses[index] == gt[gt_index, 4]:
             result[index] = 1
             matched_index.append(gt_index)
 
@@ -51,15 +52,38 @@ def AP(prediction, gt, iou_threshold):
         klass_indices = klasses == klass
         klass_result = result[klass_indices]
 
-        # the following block can be replaced by
-        # `sklearn.metrics.average_precision_score`
+        object_num = np.sum(gt[:, 4] == klass)
+
         cumsum = np.cumsum(klass_result)
-        recall_point = np.unique(cumsum)
-        precisions = np.zeros_like(recall_point, dtype=np.float)
-        for tp_num in recall_point:
-            predictions_num = np.searchsorted(cumsum, tp_num) + 1.0
-            precisions[tp_num - 1] = float(tp_num) / predictions_num
-        ap = np.sum(precisions) / len(precisions)
+        recall_point_num = np.unique(cumsum)
+        precisions = np.zeros_like(recall_point_num, dtype=np.float)
+        recalls = np.zeros_like(recall_point_num, dtype=np.float)
+
+        for recall_point in recall_point_num:
+            recall_point = int(recall_point)
+            if recall_point == 0:
+                continue
+            predictions_num = np.searchsorted(cumsum, recall_point) + 1.0
+            precisions[recall_point - 1] = float(recall_point) / predictions_num
+            recalls[recall_point - 1] = recall_point / object_num
+
+        recalls = np.insert(recalls, 0, 0.0)
+        precisions = np.insert(precisions, 0, 0.0)
+        recalls = np.append(recalls, 1.0)
+        precisions = np.append(precisions, 0.0)
+
+        # make precision monotone decreased
+        current_precision = 0
+        for i in range(len(precisions) - 1, -1, -1):
+            precisions[i] = max(current_precision, precisions[i])
+            current_precision = precisions[i]
+
+        ap = 0
+        for i in range(1, len(precisions)):
+            precision = precisions[i]
+            recall_span = recalls[i] - recalls[i - 1]
+            ap += precision * recall_span
+
         ap_of_klass[klass] = ap
 
     return ap_of_klass
@@ -74,6 +98,6 @@ def softmax(mat):
     Returns:
         ndarray: a tensor which is has the same shape as the input
     """
-    mat_exp = np.exp(mat)
-    mat_sum = np.sum(mat_exp, axis=1, keepdims=True)
+    mat_exp = torch.exp(mat)
+    mat_sum = torch.sum(mat_exp, dim=1, keepdim=True)
     return mat_exp / mat_sum

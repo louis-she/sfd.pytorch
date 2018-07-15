@@ -6,6 +6,7 @@ from utils import change_coordinate, seek_model
 from detector import Detector
 import argparse
 from evaluation_metrics import AP
+import numpy as np
 
 
 def main(args):
@@ -19,9 +20,30 @@ def main(args):
         collate_fn=my_collate_fn
     )
 
+    total = len(val_dataloader)
     detector = Detector(args.model)
-    for image, gt, _ in val_dataloader:
-        predictions = detector.forward(image)
+    APs = []
+    for index, data in enumerate(val_dataloader):
+        predictions = detector.forward(data)
+        for i in range(len(predictions)):
+            if predictions[i] is None:
+                APs.append(0)
+                continue
+            prediction = predictions[i]
+            gt = data[1][i]
+            scale = data[3][i]
+
+            gt[:, 0] *= scale[0]
+            gt[:, 1] *= scale[1]
+            gt[:, 2] *= scale[0]
+            gt[:, 3] *= scale[1]
+
+            ap = AP(prediction, gt, 0.5)
+            APs.append(ap[1.0])
+
+        print("{} / {}".format(index, total))
+
+    print("mAP: {}".format(sum(APs)/len(APs)))
 
 
 if __name__ == '__main__':
