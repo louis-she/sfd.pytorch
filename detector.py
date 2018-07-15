@@ -24,29 +24,29 @@ class Detector(object):
         self.image_size = image_size
 
     def forward(self, batched_data):
-        """do only forward with self.model
+        """predict with pytorch dataset output
 
         Args:
             batched_data (tensor): should be the images yield by the dataset
                 object.
-        Returns: output of the self.model(batched_data), without any modifications.
+        Returns: predicted coordinate and score
         """
-        return self.model(batched_data)
+        batched_data = batched_data.permute(0, 3, 1, 2).to(device).float()
+        predictions = list(zip(*list(self.model(batched_data))))
+        for i, prediction in enumerate(predictions):
+            prediction = list(prediction)
+            for k, feature_map_prediction in enumerate(prediction):
+                prediction[k] = feature_map_prediction.view(6, -1) \
+                    .permute(1, 0).contiguous()
+            predictions[i] = torch.cat(prediction)
 
-    def infer(self, image):
-        image = cv2.imread(image)
-        scale = (image.shape[0] / self.image_size,
-                 image.shape[1] / self.image_size)
+        result = []
+        for prediction in predictions:
+            result.append(self.convert_predictions(prediction))
 
-        image = cv2.resize(image, (self.image_size,) * 2)
-        _input = torch.tensor(image).permute(2, 0, 1).unsqueeze(0).float().to(device)
+        return result
 
-        predictions = self.model(_input)
-        # flatten predictions
-        for index, prediction in enumerate(predictions):
-            predictions[index] = prediction.view(6, -1).permute(1, 0)
-        predictions = torch.cat(predictions)
-
+    def convert_predictions(self, predictions):
         # get sorted indices by score
         diff = predictions[:, 5] - predictions[:, 4]
         scores, sorted_indices = torch.sort(diff, descending=True)
@@ -79,6 +79,21 @@ class Detector(object):
         keep = nms(bboxes_scores)
 
         return bounding_boxes[keep]
+
+    def infer(self, image):
+        image = cv2.imread(image)
+        scale = (image.shape[0] / self.image_size,
+                 image.shape[1] / self.image_size)
+
+        image = cv2.resize(image, (self.image_size,) * 2)
+        _input = torch.tensor(image).permute(2, 0, 1).unsqueeze(0).float().to(device)
+
+        predictions = self.model(_input)
+        # flatten predictions
+        for index, prediction in enumerate(predictions):
+            predictions[index] = prediction.view(6, -1).permute(1, 0)
+
+        return self.convert_predictions(predictions)
 
 def main(args):
     print('predicted bounding boxes of faces:')

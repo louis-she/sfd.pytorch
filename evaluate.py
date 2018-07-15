@@ -5,6 +5,7 @@ from dataset import create_wf_datasets, my_collate_fn
 from utils import change_coordinate, seek_model
 from detector import Detector
 import argparse
+from evaluation_metrics import AP
 
 
 def main(args):
@@ -18,14 +19,9 @@ def main(args):
         collate_fn=my_collate_fn
     )
 
-    model = Net()
-    state_file = seek_model(args.model)
-    checkpoint = torch.load(state_file)
-    model.load_state_dict(checkpoint['state_dict'], strict=True)
-
+    detector = Detector(args.model)
     for image, gt, _ in val_dataloader:
-        print(_)
-        exit(0)
+        predictions = detector.forward(image)
 
 
 if __name__ == '__main__':
