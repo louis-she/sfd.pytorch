@@ -6,6 +6,7 @@ class Config(object):
     VOC_DATASET_DIR = '/datasets/VOC2012'
     WF_DATASET_DIR = '/datasets/wider_face'
     LOG_DIR = '/log/models/sfd'
+    tensorBoardLoggerAddress = './logs'
 
     # datasets
     DATASETS = 'WF' # currently support 'WF' and 'VOC'
@@ -25,6 +26,7 @@ class Config(object):
     LOSS_LOG_STRIDE = 1  # log loss every N iter
     DATALOADER_WORKER_NUM = 4
     VGG16_PRETRAINED_WEIGHTS = "https://download.pytorch.org/models/vgg16-397923af.pth"
+    TENSOR_BOARD = True  # indicates tensor board connection or not
 
     # anchors, have skipped the first feature map cause I'm
     # not very interested at very tiny faces
