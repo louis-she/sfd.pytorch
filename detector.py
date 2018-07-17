@@ -10,6 +10,7 @@ from anchor import generate_anchors
 from config import Config
 from model import Net
 from utils import change_coordinate, change_coordinate_inv, seek_model, save_bounding_boxes_image, nms
+from evaluation_metrics import softmax
 
 device = torch.device(Config.DEVICE)
 
@@ -22,6 +23,76 @@ class Detector(object):
         self.model.load_state_dict(checkpoint['state_dict'], strict=True)
         self.threshold = threshold
         self.image_size = image_size
+
+        anchor_configs = (
+            Config.ANCHOR_STRIDE,
+            Config.ANCHOR_SIZE,
+            Config.IMAGE_SIZE
+        )
+        self.anchors = torch.tensor(change_coordinate(np.vstack(
+            list(map(lambda x: np.array(x), generate_anchors(*anchor_configs)))
+        ))).float()
+
+    def convert_predictions(self, predictions, scale, path=''):
+        # get sorted indices by score
+        scores, klass = torch.max(softmax(predictions[:, 4:]), dim=1)
+        inds = klass != 0
+
+        scores, klass, predictions, anchors = \
+            scores[inds], klass[inds], predictions[inds], self.anchors[inds]
+
+        if len(scores) == 0:
+            return None
+
+        scores, inds = torch.sort(scores, descending=True)
+        klass, predictions, anchors = klass[inds], predictions[inds], anchors[inds]
+
+        inds = scores > self.threshold
+        scores, klass, predictions, anchors = \
+            scores[inds], klass[inds], predictions[inds], anchors[inds]
+
+        if len(predictions) == 0:
+            return None
+        anchors = anchors.to(device)
+        x = (predictions[:, 0] * anchors[:, 2] + anchors[:, 0]) * scale[1]
+        y = (predictions[:, 1] * anchors[:, 3] + anchors[:, 1]) * scale[0]
+        w = (torch.exp(predictions[:, 2]) * anchors[:, 2]) * scale[1]
+        h = (torch.exp(predictions[:, 3]) * anchors[:, 3]) * scale[0]
+
+        bounding_boxes = torch.stack((x, y, w, h), dim=1).cpu().data.numpy()
+        bounding_boxes = change_coordinate_inv(bounding_boxes)
+
+        scores = scores.cpu().data.numpy()
+        klass = klass.cpu().data.numpy()
+        bboxes_scores = np.hstack(
+            (bounding_boxes, np.array(list(zip(*(scores, klass)))))
+        )
+
+        # nms
+        keep = nms(bboxes_scores)
+        return bboxes_scores[keep]
+
+    def forward(self, batched_data):
+        """predict with pytorch dataset output
+
+        Args:
+            batched_data (tensor): yield by the dataset
+        Returns: predicted coordinate and score
+        """
+        images = batched_data[0].permute(0, 3, 1, 2).to(device).float()
+        predictions = list(zip(*list(self.model(images))))
+        result = []
+        for i, prediction in enumerate(predictions):
+            scale = batched_data[3][i]
+            prediction = list(prediction)
+            for k, feature_map_prediction in enumerate(prediction):
+                prediction[k] = feature_map_prediction.view(6, -1) \
+                    .permute(1, 0).contiguous()
+            prediction = torch.cat(prediction)
+            result.append(self.convert_predictions(
+                prediction, scale, batched_data[2][i]))
+
+        return result
 
     def infer(self, image):
         image = cv2.imread(image)
@@ -37,38 +108,7 @@ class Detector(object):
             predictions[index] = prediction.view(6, -1).permute(1, 0)
         predictions = torch.cat(predictions)
 
-        # get sorted indices by score
-        diff = predictions[:, 5] - predictions[:, 4]
-        scores, sorted_indices = torch.sort(diff, descending=True)
-        valid_indices = scores > self.threshold
-        scores = scores[valid_indices]
-
-        predictions = predictions[sorted_indices][valid_indices]
-        # generate anchors then sort and slice
-        anchor_configs = (
-            Config.ANCHOR_STRIDE,
-            Config.ANCHOR_SIZE,
-            Config.IMAGE_SIZE
-        )
-        anchors = change_coordinate(np.vstack(
-            list(map(lambda x: np.array(x), generate_anchors(*anchor_configs)))
-        ))
-        anchors = torch.tensor(anchors)[sorted_indices][valid_indices].float().to(device)
-
-        x = (predictions[:, 0] * anchors[:, 2] + anchors[:, 0]) * scale[1]
-        y = (predictions[:, 1] * anchors[:, 3] + anchors[:, 1]) * scale[0]
-        w = (torch.exp(predictions[:, 2]) * anchors[:, 2]) * scale[1]
-        h = (torch.exp(predictions[:, 3]) * anchors[:, 3]) * scale[0]
-
-        bounding_boxes = torch.stack((x, y, w, h), dim=1).cpu().data.numpy()
-        bounding_boxes = change_coordinate_inv(bounding_boxes)
-        scores = scores.cpu().data.numpy()
-        bboxes_scores = np.hstack((bounding_boxes, np.array([scores]).T))
-
-        # nms
-        keep = nms(bboxes_scores)
-
-        return bounding_boxes[keep]
+        return self.convert_predictions(predictions, scale)
 
 def main(args):
     print('predicted bounding boxes of faces:')
