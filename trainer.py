@@ -30,14 +30,11 @@ class Trainer(object):
         self.max_epoch = max_epoch
         self.persist_stride = persist_stride
 
-        # Set the logger for TensorBoard:
-        if Config.TENSOR_BOARD:
-            self.logger = Logger(Config.tensorBoardLoggerAddress)
-
-        # Make Tensor Board Log Directory (if not exists):
+        # Make Tensor Board Log Directory (if not exists) & set the logger:
         if Config.TENSOR_BOARD:
             if not os.path.exists(Config.tensorBoardLoggerAddress):
                 os.mkdir(Config.tensorBoardLoggerAddress)
+            self.logger = Logger(Config.tensorBoardLoggerAddress)
 
         # initialize log
         self.log_dir = log_dir
@@ -210,54 +207,52 @@ class Trainer(object):
                             step = (self.current_epoch-1)*total_iter + index
                             self.logger.scalar_summary(tag, value, step)
 
-            if mode == 'train':
-                self.optimizer.zero_grad()
-                loss.backward()
-                self.optimizer.step()
+                if mode == 'train':
+                    self.optimizer.zero_grad()
+                    loss.backward()
+                    self.optimizer.step()
 
-        logging.info('[{}][epoch:{}] total_class_loss - {} total_reg_loss {} - total_loss {}'.format(
-            mode, self.current_epoch, total_class_loss / total_iter, total_reg_loss / total_iter,
-                                      total_loss / total_iter
-        ))
+            logging.info('[{}][epoch:{}] total_class_loss - {} total_reg_loss {} - total_loss {}'.format(
+                mode, self.current_epoch, total_class_loss / total_iter, total_reg_loss / total_iter, total_loss / total_iter
+            ))
 
-        # ============ TensorBoard logging ============#
-        if Config.TENSOR_BOARD and mode == 'train':
-            # Log the scalar values
-            info = {
-                'average_train_loss_classification': total_class_loss / total_iter,
-                'average_train_loss_regression': total_reg_loss / total_iter,
-                'average_train_total_loss': total_loss / total_iter,
-            }
+            # ============ TensorBoard logging ============#
+            if Config.TENSOR_BOARD and mode == 'train':
+                # Log the scalar values
+                info = {
+                    'average_train_loss_classification': total_class_loss / total_iter,
+                    'average_train_loss_regression': total_reg_loss / total_iter,
+                    'average_train_total_loss': total_loss / total_iter,
+                }
 
-            for tag, value in info.items():
-                step = self.current_epoch
-                self.logger.scalar_summary(tag, value, step)
+                for tag, value in info.items():
+                    step = self.current_epoch
+                    self.logger.scalar_summary(tag, value, step)
 
-        elif Config.TENSOR_BOARD and mode == 'validate':
-            # Log the scalar values
-            info = {
-                'average_validation_loss_classification': total_class_loss / total_iter,
-                'average_validation_loss_regression': total_reg_loss / total_iter,
-                'average_validation_total_loss': total_loss / total_iter,
-            }
+            elif Config.TENSOR_BOARD and mode == 'validate':
+                # Log the scalar values
+                info = {
+                    'average_validation_loss_classification': total_class_loss / total_iter,
+                    'average_validation_loss_regression': total_reg_loss / total_iter,
+                    'average_validation_total_loss': total_loss / total_iter,
+                }
 
-            for tag, value in info.items():
-                step = self.current_epoch
-                self.logger.scalar_summary(tag, value, step)
+                for tag, value in info.items():
+                    step = self.current_epoch
+                    self.logger.scalar_summary(tag, value, step)
 
+    def persist(self, is_best=False):
+        model_dir = os.path.join(self.log_dir, 'models')
+        if not os.path.isdir(model_dir):
+            os.mkdir(model_dir)
+        file_name = (
+            "epoch_{}_best.pth.tar" if is_best else "epoch_{}.pth.tar") \
+            .format(self.current_epoch)
 
-def persist(self, is_best=False):
-    model_dir = os.path.join(self.log_dir, 'models')
-    if not os.path.isdir(model_dir):
-        os.mkdir(model_dir)
-    file_name = (
-        "epoch_{}_best.pth.tar" if is_best else "epoch_{}.pth.tar") \
-        .format(self.current_epoch)
-
-    state = {
-        'epoch': self.current_epoch,
-        'state_dict': self.model.state_dict(),
-        'optimizer': self.optimizer.state_dict()
-    }
-    state_path = os.path.join(model_dir, file_name)
-    torch.save(state, state_path)
+        state = {
+            'epoch': self.current_epoch,
+            'state_dict': self.model.state_dict(),
+            'optimizer': self.optimizer.state_dict()
+        }
+        state_path = os.path.join(model_dir, file_name)
+        torch.save(state, state_path)
