@@ -12,6 +12,7 @@ from torch import nn
 from anchor import generate_anchors, mark_anchors
 from config import Config
 from utils import change_coordinate, seek_model
+from logger import Logger
 
 device = torch.device(Config.DEVICE)
 
@@ -38,6 +39,13 @@ class Trainer(object):
                 os.path.realpath(__file__)), 'logs')
         if not os.path.isdir(self.log_dir):
             os.mkdir(self.log_dir)
+
+        # initialize tensorboard
+        if Config.TENSOR_BOARD_ENABLED:
+            tensor_board_dir = os.path.join(self.log_dir, 'tensorboard')
+            if not os.path.isdir(tensor_board_dir):
+                os.mkdir(tensor_board_dir)
+            self.logger = Logger(tensor_board_dir)
 
         # initialize model
         self.optimizer = optimizer
@@ -93,9 +101,9 @@ class Trainer(object):
             total_loss = 0
             total_iter = len(dataloader)
 
-            for index, (images, all_gt_bboxes, _) in enumerate(dataloader):
+            for index, (images, all_gt_bboxes, _, _) in enumerate(dataloader):
                 # gt_bboxes: 2-d list of (batch_size, ndarray(bbox_size, 4) )
-                image = images.permute(0, 3, 1, 2).contiguous()\
+                image = images.permute(0, 3, 1, 2).contiguous() \
                     .float().to(device)
 
                 predictions = list(zip(*list(self.model(image))))
@@ -187,6 +195,17 @@ class Trainer(object):
                         )
                     )
 
+                    if Config.TENSOR_BOARD_ENABLED and mode == 'train':
+                        info = {
+                            'train_loss_classification': loss_class.data,
+                            'train_loss_regression': loss_reg.data,
+                            'train_total_loss': loss.data,
+                        }
+
+                        for tag, value in info.items():
+                            step = (self.current_epoch-1) * total_iter + index
+                            self.logger.scalar_summary(tag, value, step)
+
                 if mode == 'train':
                     self.optimizer.zero_grad()
                     loss.backward()
@@ -195,6 +214,30 @@ class Trainer(object):
             logging.info('[{}][epoch:{}] total_class_loss - {} total_reg_loss {} - total_loss {}'.format(
                 mode, self.current_epoch, total_class_loss / total_iter, total_reg_loss / total_iter, total_loss / total_iter
             ))
+
+            if Config.TENSOR_BOARD_ENABLED and mode == 'train':
+                # Log the scalar values
+                info = {
+                    'average_train_loss_classification': total_class_loss / total_iter,
+                    'average_train_loss_regression': total_reg_loss / total_iter,
+                    'average_train_total_loss': total_loss / total_iter,
+                }
+
+                for tag, value in info.items():
+                    step = self.current_epoch
+                    self.logger.scalar_summary(tag, value, step)
+
+            elif Config.TENSOR_BOARD_ENABLED and mode == 'validate':
+                # Log the scalar values
+                info = {
+                    'average_validation_loss_classification': total_class_loss / total_iter,
+                    'average_validation_loss_regression': total_reg_loss / total_iter,
+                    'average_validation_total_loss': total_loss / total_iter,
+                }
+
+                for tag, value in info.items():
+                    step = self.current_epoch
+                    self.logger.scalar_summary(tag, value, step)
 
     def persist(self, is_best=False):
         model_dir = os.path.join(self.log_dir, 'models')
