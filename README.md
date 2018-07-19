@@ -8,9 +8,10 @@ sfd implementation for face recognition in pytorch. Paper at: [SFD: Single Shot 
 
 ## TODOs
 
-- [x] Training on wider faces
-- [x] Inference tools and API
+- [x] Training on wider faces.
+- [x] Inference tools and API.
 - [x] Non-maximum suppression at reference.
+- [x] Tensorboard supported.
 - [ ] Evaluation.
 - [ ] Image augmentation.
 - [ ] Multi-class detection.
@@ -53,10 +54,20 @@ To train with the [wider_face dataset](http://mmlab.ie.cuhk.edu.hk/projects/WIDE
     │   └── images
     └── WIDER_val.zip
 ```
-Now in the `config.py`, set the `DATASET_DIR` to the path of `wider_face`, and set the `LOG_DIR` to whatever but a existed directory. Now it's ready to train with the following command,
+In the `config.py`, set the `DATASET_DIR` to the path of `wider_face`, and set the `LOG_DIR` to whatever but a existed directory. Now it's ready to train with the following command,
 
 ```
 python3 main.py # there is no stdout
 ```
 
-The training logging is in `LOG_DIR/log.txt`, and models will be saved at `LOG_DIR/models/epoch_xx.pth`. There are many options in `config.py`(including learning rate or resumption) for you to tweak to get a better model.
+The training log is in `LOG_DIR/log.txt`, and models will be saved at `LOG_DIR/models/epoch_xx.pth`. There are many options in `config.py`(including learning rate or resumption) for you to tweak to get a better model.
+
+If you set `TENSOR_BOARD_ENABLED` to True in the `config.py`, you can use the following command to quickly start the tensorboard server.
+
+```
+./bin/tensorboard
+```
+
+Now we can visualize how the loss is changing
+
+![](images/tensorboard.png)
