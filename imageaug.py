@@ -38,6 +38,9 @@ def crop_square(image, coordinates, ratio=1, keep_area_threshold=0.5):
         n_width = max(min(coordinate[3], n_right) - max(coordinate[1], n_left), 0)
         n_height = max(min(coordinate[2], n_bottom) - max(coordinate[0], n_top), 0)
 
+        # there are some all zero coordinates in wider face
+        if (width * height) == 0:
+            continue
         area_in_crop = (n_width * n_height) / (width * height)
 
         if area_in_crop < keep_area_threshold:
