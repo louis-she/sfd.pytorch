@@ -4,12 +4,18 @@ import cv2
 import numpy as np
 import torch
 from torch.utils.data import Dataset
+from random import uniform
+from torchvision import transforms
 
 from config import Config
+from imageaug import crop_square
 
+IMAGENET_STATS = {'mean': [0.485, 0.456, 0.406],
+                  'std': [0.229, 0.224, 0.225]}
 
 def my_collate_fn(batch):
-    images = torch.stack(list(map(lambda x: torch.tensor(x[0]).double(), batch)))
+    batch = [y for x in batch for y in x]
+    images = torch.stack(list(map(lambda x: torch.tensor(x[0]), batch)))
     coordinates = list(map(lambda x: x[1], batch))
     pathes = list(map(lambda x: x[2], batch))
     scale = np.array(list(map(lambda x: x[3], batch)))
@@ -67,19 +73,42 @@ def create_wf_datasets(dataset_dir):
     validation_dataset = FDDBDataset(
         os.path.join(dataset_dir, 'WIDER_val/images'),
         val_processed_annotation,
-        image_size=Config.IMAGE_SIZE)
+        image_size=Config.IMAGE_SIZE,
+        random_flip=False, random_crop=False,
+        random_color_jitter=False)
 
     return train_dataset, validation_dataset
 
 
 class FDDBDataset(Dataset):
 
-    def __init__(self, images_dir, annotation, image_size=640, transform=None):
+    def __init__(self, images_dir, annotation, image_size=640,
+                 random_crop=Config.RANDOM_CROP, random_flip=Config.RANDOM_FLIP,
+                 random_color_jitter=Config.RANDOM_COLOR_JITTER):
         super().__init__()
         self.images_dir = images_dir
         self.annotation = annotation
-        self.transform = transform
         self.image_size = image_size
+        self.random_crop = random_crop
+        self.random_color_jitter = random_color_jitter
+        self.random_flip = random_flip
+        self.transform = None
+
+        # self.init_transforms()
+
+    def init_transforms(self):
+        transform = [ transforms.ToPILImage() ]
+        if self.random_flip:
+            transform.append(transforms.RandomHorizontalFlip())
+        if self.random_color_jitter:
+            transform.append(transforms.ColorJitter(
+                brightness=0.4,
+                contrast=0.4,
+                saturation=0.4
+            ))
+        transform.append(transforms.ToTensor())
+        transform.append(transforms.Normalize(**IMAGENET_STATS))
+        self.transform = transforms.Compose(transform)
 
     def __image_loader(self, image_path):
         return cv2.imread(image_path)
@@ -92,19 +121,42 @@ class FDDBDataset(Dataset):
         file_path = os.path.join(self.images_dir, file_path)
         image = self.__image_loader(file_path)
 
-        # scale coordinate
-        height, width = image.shape[:2]
-        width_scale, height_scale = 640.0 / width, 640.0 / height
-        coordinates = np.array(list(map(lambda x: [
-            x[0] * height_scale,
-            x[1] * width_scale,
-            x[2] * height_scale,
-            x[3] * width_scale,
-            x[4]
-        ], coordinates)))
-        image = cv2.resize(image, (self.image_size, self.image_size))
+        images = []
+        coordinates_list = []
+        if self.random_crop:
+            ratio = uniform(Config.MIN_CROPPED_RATIO, Config.MAX_CROPPED_RATIO)
+            for _ in range(Config.CROPPED_IMAGE_COUNT):
+                cropped_image, new_coordinates = crop_square(
+                    image, coordinates, ratio, Config.KEEP_AREA_THRESHOLD)
+                images.append(cropped_image)
+                coordinates_list.append(new_coordinates)
+            if Config.KEEP_LARGEST_SQUARE:
+                cropped_image, new_coordinates = crop_square(image, coordinates, 1)
+                images.append(cropped_image)
+                coordinates_list.append(new_coordinates)
+            if Config.KEEP_ORIGINAL:
+                images.append(image)
+                coordinates_list.append(coordinates)
+        else:
+            images = [image]
+            coordinates_list = [coordinates]
 
-        if self.transform:
-            image = self.transform(image)
+        result = []
+        for index, image in enumerate(images):
+            coordinates = coordinates_list[index]
 
-        return (image, coordinates, file_path, (1 / height_scale, 1 / width_scale))
+            # scale coordinate
+            height, width = image.shape[:2]
+            width_scale, height_scale = 640.0 / width, 640.0 / height
+            coordinates = np.array(list(map(lambda x: [
+                x[0] * height_scale,
+                x[1] * width_scale,
+                x[2] * height_scale,
+                x[3] * width_scale
+            ], coordinates)))
+            image = cv2.resize(image, (self.image_size, self.image_size))
+            if self.transform:
+                image = self.transform(image)
+            result.append((image, coordinates, file_path, (1 / height_scale, 1 / width_scale)))
+
+        return result

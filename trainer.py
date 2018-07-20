@@ -120,6 +120,9 @@ class Trainer(object):
                 total_target = []
                 for i, prediction in enumerate(predictions):
                     gt_bboxes = all_gt_bboxes[i]
+                    if len(gt_bboxes) == 0:
+                        # no ground truth bounding boxes, ignored
+                        continue
 
                     pos_indices, gt_bboxes_indices, neg_indices = \
                         mark_anchors(self.anchors, gt_bboxes,

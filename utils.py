@@ -47,11 +47,14 @@ def seek_model(file_name):
     return state_file
 
 
-def draw_bounding_boxes(image_path, bounding_boxes):
+def draw_bounding_boxes(image, bounding_boxes):
     """draw bounding box on a image, should only be called in
     jupyter notebook context
     """
-    image = cv2.imread(image_path)[:, :, ::-1]
+    if type(image) == str:
+        image = cv2.imread(image)[:, :, ::-1]
+    else:
+        image = image[:, :, ::-1]
     _, ax = plt.subplots(1)
     for bbox in bounding_boxes:
         rect = patches.Rectangle(
