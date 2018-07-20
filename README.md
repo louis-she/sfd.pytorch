@@ -13,8 +13,8 @@ sfd implementation for face recognition in pytorch. Paper at: [SFD: Single Shot 
 - [x] Inference tools and API.
 - [x] Non-maximum suppression at reference.
 - [x] TensorBoard supported.
-- [ ] Evaluation.
-- [ ] Image augmentation.
+- [x] Evaluation.
+- [x] Image augmentation.
 - [ ] Multi-class detection.
 ## Detection
 
