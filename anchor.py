@@ -30,7 +30,7 @@ def generate_anchors(anchor_stride=[8, 16, 32, 64, 128],
     return all_anchors
 
 
-def mark_anchors(anchors, gt_boxes, positive_threshold=0.5,
+def mark_anchors(anchors, gt_boxes, positive_threshold=0.3,
                  negative_threshold=0.1, least_pos_num=50):
     """IoU larger than positive_threshold is positive anchors,
     less than negative_threshold is negative anchors. (Obviousely, this

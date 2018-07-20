@@ -69,7 +69,7 @@ class Net(VGG):
         f6 = self.conv7_2(x)
 
         return [
-            # F.relu(self.predict3_3(f1)), # ignore the first layer
+            self.predict3_3(self.norm3_3(f1)),
             self.predict4_3(self.norm4_3(f2)),
             self.predict5_3(self.norm5_3(f3)),
             self.predict_fc7(f4),
