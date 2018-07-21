@@ -8,7 +8,7 @@ from random import uniform
 from torchvision import transforms
 
 from config import Config
-from imageaug import crop_square
+from imageaug import crop_square, random_horizontal_flip
 
 IMAGENET_STATS = {'mean': [0.485, 0.456, 0.406],
                   'std': [0.229, 0.224, 0.225]}
@@ -94,12 +94,10 @@ class FDDBDataset(Dataset):
         self.random_flip = random_flip
         self.transform = None
 
-        # self.init_transforms()
+        self.init_transforms()
 
     def init_transforms(self):
         transform = [ transforms.ToPILImage() ]
-        if self.random_flip:
-            transform.append(transforms.RandomHorizontalFlip())
         if self.random_color_jitter:
             transform.append(transforms.ColorJitter(
                 brightness=0.4,
@@ -138,9 +136,13 @@ class FDDBDataset(Dataset):
                 images.append(image)
                 coordinates_list.append(coordinates)
         else:
-            images = [image]
-            coordinates_list = [coordinates]
+            images.append(image)
+            coordinates_list.append(coordinates)
 
+        if self.random_flip:
+            for index, image in enumerate(images):
+                images[index], coordinates_list[index] = \
+                    random_horizontal_flip(image, coordinates_list[index])
         result = []
         for index, image in enumerate(images):
             coordinates = coordinates_list[index]
@@ -152,7 +154,8 @@ class FDDBDataset(Dataset):
                 x[0] * height_scale,
                 x[1] * width_scale,
                 x[2] * height_scale,
-                x[3] * width_scale
+                x[3] * width_scale,
+                *x[4:]
             ], coordinates)))
             image = cv2.resize(image, (self.image_size, self.image_size))
             if self.transform:
