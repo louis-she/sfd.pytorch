@@ -55,3 +55,29 @@ def crop_square(image, coordinates, ratio=1, keep_area_threshold=0.5):
         ])
 
     return cropped_image, new_coordinates
+
+def random_horizontal_flip(image, coordinates):
+    """randomly horizontal flip a image and its coodinates
+
+    Args:
+        image (ndarray): numpy image, should be [height, width, channel]
+        coordinates (tuple): a tuple of coordinates list, should be
+            ([top, left, bottom, right], ...)
+    Returns:
+        tuple: (image, new_coordinates), noticed that new_coordinates
+            may be an empty list.
+    """
+
+    if random() > 0.5:
+        return image, coordinates
+    image = image[:, ::-1, :]
+    new_coordinates = []
+    for coordinate in coordinates:
+        new_coordinates.append([
+            coordinate[0],
+            image.shape[1] - coordinate[1],
+            coordinate[2],
+            image.shape[1] - coordinate[3],
+            *coordinate[4:]
+        ])
+    return image, new_coordinates
