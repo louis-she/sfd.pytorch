@@ -103,9 +103,7 @@ class Trainer(object):
 
             for index, (images, all_gt_bboxes, _, _) in enumerate(dataloader):
                 # gt_bboxes: 2-d list of (batch_size, ndarray(bbox_size, 4) )
-                image = images.permute(0, 3, 1, 2).contiguous() \
-                    .float().to(device)
-
+                image = images.float().to(device)
                 predictions = list(zip(*list(self.model(image))))
                 for i, prediction in enumerate(predictions):
                     prediction = list(prediction)
