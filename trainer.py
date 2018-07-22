@@ -13,6 +13,7 @@ from anchor import generate_anchors, mark_anchors
 from config import Config
 from utils import change_coordinate, seek_model
 from logger import Logger
+from evaluate import evaluate
 
 device = torch.device(Config.DEVICE)
 
@@ -179,8 +180,8 @@ class Trainer(object):
                 total_targets = torch.cat(total_target)
                 total_effective_pred = torch.cat(total_effective_pred)
 
-                loss_class = F.cross_entropy(
-                    total_effective_pred, total_targets
+                loss_class = 5 * F.cross_entropy(
+                    total_effective_pred, total_targets,
                 )
                 loss_reg = F.smooth_l1_loss(total_t, total_gt)
                 loss = loss_class + loss_reg
@@ -239,6 +240,13 @@ class Trainer(object):
                 for tag, value in info.items():
                     step = self.current_epoch
                     self.logger.scalar_summary(tag, value, step)
+
+                # compute mAP
+                print('computing mAP...')
+                mAP = evaluate(str(self.current_epoch))
+                self.logger.scalar_summary('mAP', mAP, self.current_epoch)
+
+
 
     def persist(self, is_best=False):
         model_dir = os.path.join(self.log_dir, 'models')

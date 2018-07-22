@@ -68,7 +68,8 @@ def create_wf_datasets(dataset_dir):
     train_dataset = FDDBDataset(
         os.path.join(dataset_dir, 'WIDER_train/images'),
         train_processed_annotation,
-        image_size=Config.IMAGE_SIZE)
+        image_size=Config.IMAGE_SIZE,
+        random_color_jitter=Config.RANDOM_COLOR_JITTER)
 
     validation_dataset = FDDBDataset(
         os.path.join(dataset_dir, 'WIDER_val/images'),
@@ -100,9 +101,9 @@ class FDDBDataset(Dataset):
         transform = [ transforms.ToPILImage() ]
         if self.random_color_jitter:
             transform.append(transforms.ColorJitter(
-                brightness=0.4,
-                contrast=0.4,
-                saturation=0.4
+                brightness=0.2,
+                contrast=0.2,
+                saturation=0.2
             ))
         transform.append(transforms.ToTensor())
         transform.append(transforms.Normalize(**IMAGENET_STATS))

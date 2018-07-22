@@ -5,12 +5,14 @@ import sys
 import cv2
 import numpy as np
 import torch
+from torchvision import transforms
 
 from anchor import generate_anchors
 from config import Config
 from model import Net
 from utils import change_coordinate, change_coordinate_inv, seek_model, save_bounding_boxes_image, nms
 from evaluation_metrics import softmax
+from dataset import IMAGENET_STATS
 
 device = torch.device(Config.DEVICE)
 
@@ -18,9 +20,13 @@ device = torch.device(Config.DEVICE)
 class Detector(object):
 
     def __init__(self, model, image_size=Config.IMAGE_SIZE, threshold=Config.PREDICTION_THRESHOLD):
-        checkpoint = torch.load(seek_model(model))
-        self.model = Net().to(device)
-        self.model.load_state_dict(checkpoint['state_dict'], strict=True)
+        if type(model) == str:
+            checkpoint = torch.load(seek_model(model))
+            self.model = Net().to(device)
+            self.model.load_state_dict(checkpoint['state_dict'], strict=True)
+        else:
+            self.model = model
+        self.model.eval()
         self.threshold = threshold
         self.image_size = image_size
 
@@ -32,6 +38,12 @@ class Detector(object):
         self.anchors = torch.tensor(change_coordinate(np.vstack(
             list(map(lambda x: np.array(x), generate_anchors(*anchor_configs)))
         ))).float()
+
+        self.transforms = transforms.Compose([
+            transforms.ToPILImage(),
+            transforms.ToTensor(),
+            transforms.Normalize(**IMAGENET_STATS)
+        ])
 
     def convert_predictions(self, predictions, scale, path=''):
         # get sorted indices by score
@@ -79,7 +91,7 @@ class Detector(object):
             batched_data (tensor): yield by the dataset
         Returns: predicted coordinate and score
         """
-        images = batched_data[0].permute(0, 3, 1, 2).to(device).float()
+        images = batched_data[0].to(device).float()
         predictions = list(zip(*list(self.model(images))))
         result = []
         for i, prediction in enumerate(predictions):
@@ -98,9 +110,10 @@ class Detector(object):
         image = cv2.imread(image)
         scale = (image.shape[0] / self.image_size,
                  image.shape[1] / self.image_size)
-
         image = cv2.resize(image, (self.image_size,) * 2)
-        _input = torch.tensor(image).permute(2, 0, 1).unsqueeze(0).float().to(device)
+        image = self.transforms(image)
+
+        _input = image.float().to(device).unsqueeze(0)
 
         predictions = self.model(_input)
         # flatten predictions
