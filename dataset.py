@@ -10,9 +10,6 @@ from torchvision import transforms
 from config import Config
 from imageaug import crop_square, random_horizontal_flip
 
-IMAGENET_STATS = {'mean': [0.485, 0.456, 0.406],
-                  'std': [0.229, 0.224, 0.225]}
-
 def my_collate_fn(batch):
     batch = [y for x in batch for y in x]
     images = torch.stack(list(map(lambda x: torch.tensor(x[0]), batch)))
@@ -106,7 +103,6 @@ class FDDBDataset(Dataset):
                 saturation=0.2
             ))
         transform.append(transforms.ToTensor())
-        transform.append(transforms.Normalize(**IMAGENET_STATS))
         self.transform = transforms.Compose(transform)
 
     def __image_loader(self, image_path):
@@ -119,6 +115,7 @@ class FDDBDataset(Dataset):
         file_path, coordinates = self.annotation[index]
         file_path = os.path.join(self.images_dir, file_path)
         image = self.__image_loader(file_path)
+        image -= np.array([104,117,123], dtype=np.uint8)
 
         images = []
         coordinates_list = []

@@ -105,20 +105,31 @@ class Trainer(object):
             for index, (images, all_gt_bboxes, _, _) in enumerate(dataloader):
                 # gt_bboxes: 2-d list of (batch_size, ndarray(bbox_size, 4) )
                 image = images.float().to(device)
+                res = self.model(image)
+
                 predictions = list(zip(*list(self.model(image))))
+                # get and flatten reg_preds and cls_preds from predictions
+                reg_preds_list = []
+                cls_preds_list = []
+
                 for i, prediction in enumerate(predictions):
                     prediction = list(prediction)
                     for k, feature_map_prediction in enumerate(prediction):
-                        prediction[k] = feature_map_prediction.view(6, -1) \
+                        prediction[k] = feature_map_prediction \
+                            .view(feature_map_prediction.size()[0], -1) \
                             .permute(1, 0).contiguous()
-                    predictions[i] = torch.cat(prediction)
+                    reg_preds_list.append(torch.cat(prediction[::2]))
+                    cls_preds_list.append(torch.cat(prediction[1::2]))
 
                 total_t = []
                 total_gt = []
                 total_effective_pred = []
                 total_target = []
-                for i, prediction in enumerate(predictions):
+
+                for i, reg_preds in enumerate(reg_preds_list):
+                    cls_preds = cls_preds_list[i]
                     gt_bboxes = all_gt_bboxes[i]
+
                     if len(gt_bboxes) == 0:
                         # no ground truth bounding boxes, ignored
                         continue
@@ -142,11 +153,8 @@ class Trainer(object):
                         self.anchors_coord_changed[pos_indices]
                     ).float().to(device)
 
-                    pos_preds = prediction[pos_indices]
-                    neg_preds = prediction[neg_indices]
-
                     # preds bbox is tx ty tw th
-                    total_t.append(pos_preds[:, :4])
+                    total_t.append(reg_preds[pos_indices])
 
                     gt_bboxes = change_coordinate(gt_bboxes)
                     gt_bboxes = torch.tensor(gt_bboxes).float().to(device)
@@ -159,10 +167,10 @@ class Trainer(object):
                     gt = torch.stack((gtx, gty, gtw, gth), dim=1)
                     total_gt.append(gt)
 
-                    pos_targets = torch.ones(pos_preds.size()[0]).long().to(device)
-                    neg_targets = torch.zeros(neg_preds.size()[0]).long().to(device)
+                    pos_targets = torch.ones(len(pos_indices)).long().to(device)
+                    neg_targets = torch.zeros(len(neg_indices)).long().to(device)
 
-                    effective_preds = torch.cat((pos_preds[:, 4:], neg_preds[:, 4:]))
+                    effective_preds = torch.cat((cls_preds[pos_indices], cls_preds[neg_indices]))
                     targets = torch.cat((pos_targets, neg_targets))
 
                     shuffle_indexes = torch.randperm(effective_preds.size()[0])
@@ -242,11 +250,8 @@ class Trainer(object):
                     self.logger.scalar_summary(tag, value, step)
 
                 # compute mAP
-                print('computing mAP...')
                 mAP = evaluate(str(self.current_epoch))
-                self.logger.scalar_summary('mAP', mAP, self.current_epoch)
-
-
+                self.logger.scalar_summary('mean_average_precision', mAP, self.current_epoch)
 
     def persist(self, is_best=False):
         model_dir = os.path.join(self.log_dir, 'models')

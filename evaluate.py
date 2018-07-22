@@ -41,7 +41,7 @@ def evaluate(model):
             ap = AP(prediction, gt, 0.5)
             APs.append(ap[1.0])
 
-    print("mAP: {}".format(sum(APs)/len(APs)))
+    return sum(APs) / len(APs)
 
 
 if __name__ == '__main__':

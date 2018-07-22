@@ -12,7 +12,6 @@ from config import Config
 from model import Net
 from utils import change_coordinate, change_coordinate_inv, seek_model, save_bounding_boxes_image, nms
 from evaluation_metrics import softmax
-from dataset import IMAGENET_STATS
 
 device = torch.device(Config.DEVICE)
 
@@ -23,7 +22,7 @@ class Detector(object):
         if type(model) == str:
             checkpoint = torch.load(seek_model(model))
             self.model = Net().to(device)
-            self.model.load_state_dict(checkpoint['state_dict'], strict=True)
+            self.model.load_state_dict(checkpoint['state_dict'], strict=False)
         else:
             self.model = model
         self.model.eval()
@@ -41,8 +40,7 @@ class Detector(object):
 
         self.transforms = transforms.Compose([
             transforms.ToPILImage(),
-            transforms.ToTensor(),
-            transforms.Normalize(**IMAGENET_STATS)
+            transforms.ToTensor()
         ])
 
     def convert_predictions(self, predictions, scale, path=''):
@@ -94,15 +92,23 @@ class Detector(object):
         images = batched_data[0].to(device).float()
         predictions = list(zip(*list(self.model(images))))
         result = []
+
+        reg_preds_list = []
+        cls_preds_list = []
+
         for i, prediction in enumerate(predictions):
             scale = batched_data[3][i]
             prediction = list(prediction)
             for k, feature_map_prediction in enumerate(prediction):
-                prediction[k] = feature_map_prediction.view(6, -1) \
+                prediction[k] = feature_map_prediction \
+                    .view(feature_map_prediction.size()[0], -1) \
                     .permute(1, 0).contiguous()
-            prediction = torch.cat(prediction)
+            reg_preds = torch.cat(prediction[::2])
+            cls_preds = torch.cat(prediction[1::2])
+
             result.append(self.convert_predictions(
-                prediction, scale, batched_data[2][i]))
+                torch.cat((reg_preds, cls_preds), dim=1),
+                scale, batched_data[2][i]))
 
         return result
 

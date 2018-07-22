@@ -41,12 +41,20 @@ class Net(VGG):
         self.norm4_3 = Scale(8)
         self.norm5_3 = Scale(5)
 
-        self.predict3_3 = nn.Conv2d(256, 6, kernel_size=3, padding=1)
-        self.predict4_3 = nn.Conv2d(512, 6, kernel_size=3, padding=1)
-        self.predict5_3 = nn.Conv2d(512, 6, kernel_size=3, padding=1)
-        self.predict_fc7 = nn.Conv2d(1024, 6, kernel_size=3, padding=1)
-        self.predict6_2 = nn.Conv2d(512, 6, kernel_size=3, padding=1)
-        self.predict7_2 = nn.Conv2d(256, 6, kernel_size=3, padding=1)
+        self.predict3_3_reg = nn.Conv2d(256, 4, kernel_size=3, padding=1)
+        self.predict4_3_reg = nn.Conv2d(512, 4, kernel_size=3, padding=1)
+        self.predict5_3_reg = nn.Conv2d(512, 4, kernel_size=3, padding=1)
+        self.predict_fc7_reg = nn.Conv2d(1024, 4, kernel_size=3, padding=1)
+        self.predict6_2_reg = nn.Conv2d(512, 4, kernel_size=3, padding=1)
+        self.predict7_2_reg = nn.Conv2d(256, 4, kernel_size=3, padding=1)
+
+        self.predict3_3_cls = nn.Conv2d(256, 2, kernel_size=3, padding=1)
+        self.predict4_3_cls = nn.Conv2d(512, 2, kernel_size=3, padding=1)
+        self.predict5_3_cls = nn.Conv2d(512, 2, kernel_size=3, padding=1)
+        self.predict_fc7_cls = nn.Conv2d(1024, 2, kernel_size=3, padding=1)
+        self.predict6_2_cls = nn.Conv2d(512, 2, kernel_size=3, padding=1)
+        self.predict7_2_cls = nn.Conv2d(256, 2, kernel_size=3, padding=1)
+
 
     def stride_forward(self, x, start, end):
         for layer in self.features[start:end]:
@@ -69,12 +77,18 @@ class Net(VGG):
         f6 = self.conv7_2(x)
 
         return [
-            self.predict3_3(self.norm3_3(f1)),
-            self.predict4_3(self.norm4_3(f2)),
-            self.predict5_3(self.norm5_3(f3)),
-            self.predict_fc7(f4),
-            self.predict6_2(f5),
-            self.predict7_2(f6)
+            self.predict3_3_reg(self.norm3_3(f1)),
+            self.predict3_3_cls(self.norm3_3(f1)),
+            self.predict4_3_reg(self.norm4_3(f2)),
+            self.predict4_3_cls(self.norm4_3(f2)),
+            self.predict5_3_reg(self.norm5_3(f3)),
+            self.predict5_3_cls(self.norm5_3(f3)),
+            self.predict_fc7_reg(f4),
+            self.predict_fc7_cls(f4),
+            self.predict6_2_reg(f5),
+            self.predict6_2_cls(f5),
+            self.predict7_2_reg(f6),
+            self.predict7_2_cls(f6)
         ]
 
     def _conv_block(self, in_channel, out_channel, kernel=3, stride=1):
