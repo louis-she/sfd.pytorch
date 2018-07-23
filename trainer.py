@@ -74,7 +74,7 @@ class Trainer(object):
 
             print("loading checkpoint {}".format(state_file))
             checkpoint = torch.load(state_file)
-            self.start_epoch = self.current_epoch = checkpoint['epoch']
+            self.start_epoch = self.current_epoch = checkpoint['epoch'] + 1
             self.model.load_state_dict(checkpoint['state_dict'], strict=True)
             self.optimizer.load_state_dict(checkpoint['optimizer'])
             print("loaded checkpoint {} (epoch {})".format(
