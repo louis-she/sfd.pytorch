@@ -49,7 +49,7 @@ def mark_anchors(anchors, gt_boxes, positive_threshold=0.3,
     # if matched anchors is not enough(less than least_pos_num),
     # do the sort and pick top least_pos_num trick.
     if len(matched_gt_box_indices) < least_pos_num:
-        # anyway, 0.1 is the bottom line
+        # anyway, 0.2 is the bottom line
         allowed_positive_anchor_indices = np.where(max_iou > 0.2)[0]
         top_n_sorted_indices = np.argsort(max_iou)[::-1][:least_pos_num]
 

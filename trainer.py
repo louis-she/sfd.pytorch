@@ -102,7 +102,7 @@ class Trainer(object):
             total_loss = 0
             total_iter = len(dataloader)
 
-            for index, (images, all_gt_bboxes, _, _) in enumerate(dataloader):
+            for index, (images, all_gt_bboxes, path, _) in enumerate(dataloader):
                 # gt_bboxes: 2-d list of (batch_size, ndarray(bbox_size, 4) )
                 image = images.float().permute(0, 3, 1, 2).to(device)
                 res = self.model(image)

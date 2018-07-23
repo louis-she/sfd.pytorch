@@ -16,7 +16,7 @@ def evaluate(model):
         val_dataset,
         batch_size=Config.BATCH_SIZE,
         num_workers=Config.DATALOADER_WORKER_NUM,
-        shuffle=False,
+        shuffle=True,
         collate_fn=my_collate_fn
     )
 
@@ -52,4 +52,4 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
     mAP = evaluate(args.model)
-    print("mAP: {}".format(sum(APs)/len(APs)))
+    print("mAP: {}".format(mAP))
