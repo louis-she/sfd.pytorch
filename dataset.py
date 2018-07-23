@@ -92,18 +92,18 @@ class FDDBDataset(Dataset):
         self.random_flip = random_flip
         self.transform = None
 
-        self.init_transforms()
+        # self.init_transforms()
 
-    def init_transforms(self):
-        transform = [ transforms.ToPILImage() ]
-        if self.random_color_jitter:
-            transform.append(transforms.ColorJitter(
-                brightness=0.2,
-                contrast=0.2,
-                saturation=0.2
-            ))
-        transform.append(transforms.ToTensor())
-        self.transform = transforms.Compose(transform)
+    # def init_transforms(self):
+    #     transform = [ transforms.ToPILImage() ]
+    #     if self.random_color_jitter:
+    #         transform.append(transforms.ColorJitter(
+    #             brightness=0.2,
+    #             contrast=0.2,
+    #             saturation=0.2
+    #         ))
+    #     transform.append(transforms.ToTensor())
+    #     self.transform = transforms.Compose(transform)
 
     def __image_loader(self, image_path):
         return cv2.imread(image_path)
@@ -115,7 +115,7 @@ class FDDBDataset(Dataset):
         file_path, coordinates = self.annotation[index]
         file_path = os.path.join(self.images_dir, file_path)
         image = self.__image_loader(file_path)
-        image -= np.array([104,117,123], dtype=np.uint8)
+        image = image - np.array([104, 117, 123], dtype=np.uint8)
 
         images = []
         coordinates_list = []

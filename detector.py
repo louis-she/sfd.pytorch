@@ -89,7 +89,7 @@ class Detector(object):
             batched_data (tensor): yield by the dataset
         Returns: predicted coordinate and score
         """
-        images = batched_data[0].to(device).float()
+        images = batched_data[0].permute(0, 3, 1, 2).to(device).float()
         predictions = list(zip(*list(self.model(images))))
         result = []
 

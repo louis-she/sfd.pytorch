@@ -104,7 +104,7 @@ class Trainer(object):
 
             for index, (images, all_gt_bboxes, _, _) in enumerate(dataloader):
                 # gt_bboxes: 2-d list of (batch_size, ndarray(bbox_size, 4) )
-                image = images.float().to(device)
+                image = images.float().permute(0, 3, 1, 2).to(device)
                 res = self.model(image)
 
                 predictions = list(zip(*list(self.model(image))))
@@ -146,8 +146,10 @@ class Trainer(object):
 
                     # make samples of negative to positive 3:1
                     n_neg_indices = len(pos_indices) * Config.NEG_POS_ANCHOR_NUM_RATIO
-                    reg_random_indices = torch.randperm(len(neg_indices))
-                    neg_indices = neg_indices[reg_random_indices][:n_neg_indices]
+
+                    # hard neg example mining
+                    neg_cls_preds = cls_preds[neg_indices]
+                    neg_indices = torch.sort(neg_cls_preds[:, 0])[1][:n_neg_indices]
 
                     pos_anchors = torch.tensor(
                         self.anchors_coord_changed[pos_indices]
@@ -170,7 +172,7 @@ class Trainer(object):
                     pos_targets = torch.ones(len(pos_indices)).long().to(device)
                     neg_targets = torch.zeros(len(neg_indices)).long().to(device)
 
-                    effective_preds = torch.cat((cls_preds[pos_indices], cls_preds[neg_indices]))
+                    effective_preds = torch.cat((cls_preds[pos_indices], neg_cls_preds[neg_indices]))
                     targets = torch.cat((pos_targets, neg_targets))
 
                     shuffle_indexes = torch.randperm(effective_preds.size()[0])
@@ -194,6 +196,11 @@ class Trainer(object):
                 loss_reg = F.smooth_l1_loss(total_t, total_gt)
                 loss = loss_class + loss_reg
 
+                if mode == 'train':
+                    self.optimizer.zero_grad()
+                    loss.backward()
+                    self.optimizer.step()
+
                 total_class_loss += loss_class.data
                 total_reg_loss += loss_reg.data
                 total_loss += loss.data
@@ -215,11 +222,6 @@ class Trainer(object):
                         for tag, value in info.items():
                             step = (self.current_epoch-1) * total_iter + index
                             self.logger.scalar_summary(tag, value, step)
-
-                if mode == 'train':
-                    self.optimizer.zero_grad()
-                    loss.backward()
-                    self.optimizer.step()
 
             logging.info('[{}][epoch:{}] total_class_loss - {} total_reg_loss {} - total_loss {}'.format(
                 mode, self.current_epoch, total_class_loss / total_iter, total_reg_loss / total_iter, total_loss / total_iter
@@ -250,7 +252,7 @@ class Trainer(object):
                     self.logger.scalar_summary(tag, value, step)
 
                 # compute mAP
-                mAP = evaluate(str(self.current_epoch))
+                mAP = evaluate(self.model)
                 self.logger.scalar_summary('mean_average_precision', mAP, self.current_epoch)
 
     def persist(self, is_best=False):

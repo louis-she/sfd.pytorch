@@ -63,8 +63,11 @@ class Net(VGG):
 
     def forward(self, x):
         f1 = self.stride_forward(x, 0, 16)
+        f1_norm = self.norm3_3(f1)
         f2 = self.stride_forward(f1, 16, 23)
+        f2_norm = self.norm4_3(f2)
         f3 = self.stride_forward(f2, 23, 30)
+        f3_norm = self.norm5_3(f3)
 
         x = self.pool5(f3)
         x = self.conv_fc6(x)
@@ -77,12 +80,12 @@ class Net(VGG):
         f6 = self.conv7_2(x)
 
         return [
-            self.predict3_3_reg(self.norm3_3(f1)),
-            self.predict3_3_cls(self.norm3_3(f1)),
-            self.predict4_3_reg(self.norm4_3(f2)),
-            self.predict4_3_cls(self.norm4_3(f2)),
-            self.predict5_3_reg(self.norm5_3(f3)),
-            self.predict5_3_cls(self.norm5_3(f3)),
+            self.predict3_3_reg(f1_norm),
+            self.predict3_3_cls(f1_norm),
+            self.predict4_3_reg(f2_norm),
+            self.predict4_3_cls(f2_norm),
+            self.predict5_3_reg(f3_norm),
+            self.predict5_3_cls(f3_norm),
             self.predict_fc7_reg(f4),
             self.predict_fc7_cls(f4),
             self.predict6_2_reg(f5),
