@@ -38,8 +38,8 @@ def main():
     #     params=model.parameters(),
     #     lr=Config.LEARNING_RATE, weight_decay=Config.WEIGHT_DECAY
     # )
-    torch.optim.SGD(model.parameters(), lr=Config.LEARNING_RATE,
-        momentum=Config.MOMENTUM, weight_decay=Config.WEIGHT_DECAY)
+    optimizer = torch.optim.SGD(model.parameters(), lr=Config.LEARNING_RATE,
+        weight_decay=Config.WEIGHT_DECAY)
 
     trainer = Trainer(
         optimizer,

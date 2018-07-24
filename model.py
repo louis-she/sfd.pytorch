@@ -57,11 +57,7 @@ class Net(VGG):
 
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
-                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
-            elif isinstance(m, nn.BatchNorm2d):
-                nn.init.constant_(m.weight, 1)
-                nn.init.constant_(m.bias, 0)
-
+                m.weight.data.normal_(0.0, 0.02)
 
     def stride_forward(self, x, start, end):
         for layer in self.features[start:end]:
@@ -87,8 +83,8 @@ class Net(VGG):
         f6 = self.conv7_2(x)
 
         return [
-            self.predict3_3_reg(f1_norm),
-            self.predict3_3_cls(f1_norm),
+            # self.predict3_3_reg(f1_norm),
+            # self.predict3_3_cls(f1_norm),
             self.predict4_3_reg(f2_norm),
             self.predict4_3_cls(f2_norm),
             self.predict5_3_reg(f3_norm),

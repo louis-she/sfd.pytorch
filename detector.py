@@ -51,9 +51,12 @@ class Detector(object):
         scores, inds = torch.sort(scores, descending=True)
         klass, predictions, anchors = klass[inds], predictions[inds], anchors[inds]
 
-        inds = scores > self.threshold
+        # inds = scores > self.threshold
+        # scores, klass, predictions, anchors = \
+        #     scores[inds], klass[inds], predictions[inds], anchors[inds]
+
         scores, klass, predictions, anchors = \
-            scores[inds], klass[inds], predictions[inds], anchors[inds]
+            scores[:200], klass[:200], predictions[:200], anchors[:200]
 
         if len(predictions) == 0:
             return None
