@@ -18,9 +18,13 @@ device = torch.device(Config.DEVICE)
 class Detector(object):
 
     def __init__(self, model, image_size=Config.IMAGE_SIZE, threshold=Config.PREDICTION_THRESHOLD):
-        checkpoint = torch.load(seek_model(model))
-        self.model = Net().to(device)
-        self.model.load_state_dict(checkpoint['state_dict'], strict=True)
+        if type(model) == str:
+            checkpoint = torch.load(seek_model(model))
+            self.model = Net().to(device)
+            self.model.load_state_dict(checkpoint['state_dict'], strict=True)
+        else:
+            self.model = model
+        self.model.eval()
         self.threshold = threshold
         self.image_size = image_size
 
@@ -47,13 +51,17 @@ class Detector(object):
         scores, inds = torch.sort(scores, descending=True)
         klass, predictions, anchors = klass[inds], predictions[inds], anchors[inds]
 
-        inds = scores > self.threshold
+        # inds = scores > self.threshold
+        # scores, klass, predictions, anchors = \
+        #     scores[inds], klass[inds], predictions[inds], anchors[inds]
+
         scores, klass, predictions, anchors = \
-            scores[inds], klass[inds], predictions[inds], anchors[inds]
+            scores[:200], klass[:200], predictions[:200], anchors[:200]
 
         if len(predictions) == 0:
             return None
         anchors = anchors.to(device)
+
         x = (predictions[:, 0] * anchors[:, 2] + anchors[:, 0]) * scale[1]
         y = (predictions[:, 1] * anchors[:, 3] + anchors[:, 1]) * scale[0]
         w = (torch.exp(predictions[:, 2]) * anchors[:, 2]) * scale[1]
@@ -82,33 +90,46 @@ class Detector(object):
         images = batched_data[0].permute(0, 3, 1, 2).to(device).float()
         predictions = list(zip(*list(self.model(images))))
         result = []
+
+        reg_preds_list = []
+        cls_preds_list = []
+
         for i, prediction in enumerate(predictions):
             scale = batched_data[3][i]
             prediction = list(prediction)
             for k, feature_map_prediction in enumerate(prediction):
-                prediction[k] = feature_map_prediction.view(6, -1) \
+                prediction[k] = feature_map_prediction \
+                    .view(feature_map_prediction.size()[0], -1) \
                     .permute(1, 0).contiguous()
-            prediction = torch.cat(prediction)
+            reg_preds = torch.cat(prediction[::2])
+            cls_preds = torch.cat(prediction[1::2])
+
             result.append(self.convert_predictions(
-                prediction, scale, batched_data[2][i]))
+                torch.cat((reg_preds, cls_preds), dim=1),
+                scale, batched_data[2][i]))
 
         return result
 
     def infer(self, image):
         image = cv2.imread(image)
+        image = image - np.array([104, 117, 123], dtype=np.uint8)
         scale = (image.shape[0] / self.image_size,
                  image.shape[1] / self.image_size)
-
         image = cv2.resize(image, (self.image_size,) * 2)
-        _input = torch.tensor(image).permute(2, 0, 1).unsqueeze(0).float().to(device)
+
+        _input = torch.tensor(image).permute(2, 0, 1).float() \
+            .to(device).unsqueeze(0)
 
         predictions = self.model(_input)
         # flatten predictions
+        reg_preds = []
+        cls_preds = []
         for index, prediction in enumerate(predictions):
-            predictions[index] = prediction.view(6, -1).permute(1, 0)
-        predictions = torch.cat(predictions)
+            predictions[index] = prediction.squeeze().view(prediction.size()[1], -1).permute(1, 0)
+        reg_preds = torch.cat(predictions[::2])
+        cls_preds = torch.cat(predictions[1::2])
 
-        return self.convert_predictions(predictions, scale)
+        return self.convert_predictions(torch.cat((reg_preds, cls_preds), dim=1), scale)
 
 def main(args):
     print('predicted bounding boxes of faces:')

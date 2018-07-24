@@ -34,10 +34,12 @@ def main():
     )
 
     model = Net()
-    optimizer = torch.optim.Adam(
-        params=model.parameters(),
-        lr=Config.LEARNING_RATE, weight_decay=Config.WEIGHT_DECAY
-    )
+    # optimizer = torch.optim.Adam(
+    #     params=model.parameters(),
+    #     lr=Config.LEARNING_RATE, weight_decay=Config.WEIGHT_DECAY
+    # )
+    optimizer = torch.optim.SGD(model.parameters(), lr=Config.LEARNING_RATE,
+        weight_decay=Config.WEIGHT_DECAY)
 
     trainer = Trainer(
         optimizer,

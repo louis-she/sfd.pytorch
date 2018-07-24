@@ -10,9 +10,6 @@ from torchvision import transforms
 from config import Config
 from imageaug import crop_square, random_horizontal_flip
 
-IMAGENET_STATS = {'mean': [0.485, 0.456, 0.406],
-                  'std': [0.229, 0.224, 0.225]}
-
 def my_collate_fn(batch):
     batch = [y for x in batch for y in x]
     images = torch.stack(list(map(lambda x: torch.tensor(x[0]), batch)))
@@ -68,7 +65,8 @@ def create_wf_datasets(dataset_dir):
     train_dataset = FDDBDataset(
         os.path.join(dataset_dir, 'WIDER_train/images'),
         train_processed_annotation,
-        image_size=Config.IMAGE_SIZE)
+        image_size=Config.IMAGE_SIZE,
+        random_color_jitter=Config.RANDOM_COLOR_JITTER)
 
     validation_dataset = FDDBDataset(
         os.path.join(dataset_dir, 'WIDER_val/images'),
@@ -94,19 +92,18 @@ class FDDBDataset(Dataset):
         self.random_flip = random_flip
         self.transform = None
 
-        self.init_transforms()
+        # self.init_transforms()
 
-    def init_transforms(self):
-        transform = [ transforms.ToPILImage() ]
-        if self.random_color_jitter:
-            transform.append(transforms.ColorJitter(
-                brightness=0.4,
-                contrast=0.4,
-                saturation=0.4
-            ))
-        transform.append(transforms.ToTensor())
-        transform.append(transforms.Normalize(**IMAGENET_STATS))
-        self.transform = transforms.Compose(transform)
+    # def init_transforms(self):
+    #     transform = [ transforms.ToPILImage() ]
+    #     if self.random_color_jitter:
+    #         transform.append(transforms.ColorJitter(
+    #             brightness=0.2,
+    #             contrast=0.2,
+    #             saturation=0.2
+    #         ))
+    #     transform.append(transforms.ToTensor())
+    #     self.transform = transforms.Compose(transform)
 
     def __image_loader(self, image_path):
         return cv2.imread(image_path)
@@ -118,6 +115,7 @@ class FDDBDataset(Dataset):
         file_path, coordinates = self.annotation[index]
         file_path = os.path.join(self.images_dir, file_path)
         image = self.__image_loader(file_path)
+        image = image - np.array([104, 117, 123], dtype=np.uint8)
 
         images = []
         coordinates_list = []

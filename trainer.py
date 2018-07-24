@@ -13,6 +13,7 @@ from anchor import generate_anchors, mark_anchors
 from config import Config
 from utils import change_coordinate, seek_model
 from logger import Logger
+from evaluate import evaluate
 
 device = torch.device(Config.DEVICE)
 
@@ -73,7 +74,7 @@ class Trainer(object):
 
             print("loading checkpoint {}".format(state_file))
             checkpoint = torch.load(state_file)
-            self.start_epoch = self.current_epoch = checkpoint['epoch']
+            self.start_epoch = self.current_epoch = checkpoint['epoch'] + 1
             self.model.load_state_dict(checkpoint['state_dict'], strict=True)
             self.optimizer.load_state_dict(checkpoint['optimizer'])
             print("loaded checkpoint {} (epoch {})".format(
@@ -101,23 +102,34 @@ class Trainer(object):
             total_loss = 0
             total_iter = len(dataloader)
 
-            for index, (images, all_gt_bboxes, _, _) in enumerate(dataloader):
+            for index, (images, all_gt_bboxes, path, _) in enumerate(dataloader):
                 # gt_bboxes: 2-d list of (batch_size, ndarray(bbox_size, 4) )
-                image = images.float().to(device)
+                image = images.float().permute(0, 3, 1, 2).to(device)
+                res = self.model(image)
+
                 predictions = list(zip(*list(self.model(image))))
+                # get and flatten reg_preds and cls_preds from predictions
+                reg_preds_list = []
+                cls_preds_list = []
+
                 for i, prediction in enumerate(predictions):
                     prediction = list(prediction)
                     for k, feature_map_prediction in enumerate(prediction):
-                        prediction[k] = feature_map_prediction.view(6, -1) \
+                        prediction[k] = feature_map_prediction \
+                            .view(feature_map_prediction.size()[0], -1) \
                             .permute(1, 0).contiguous()
-                    predictions[i] = torch.cat(prediction)
+                    reg_preds_list.append(torch.cat(prediction[::2]))
+                    cls_preds_list.append(torch.cat(prediction[1::2]))
 
                 total_t = []
                 total_gt = []
                 total_effective_pred = []
                 total_target = []
-                for i, prediction in enumerate(predictions):
+
+                for i, reg_preds in enumerate(reg_preds_list):
+                    cls_preds = cls_preds_list[i]
                     gt_bboxes = all_gt_bboxes[i]
+
                     if len(gt_bboxes) == 0:
                         # no ground truth bounding boxes, ignored
                         continue
@@ -134,18 +146,17 @@ class Trainer(object):
 
                     # make samples of negative to positive 3:1
                     n_neg_indices = len(pos_indices) * Config.NEG_POS_ANCHOR_NUM_RATIO
-                    reg_random_indices = torch.randperm(len(neg_indices))
-                    neg_indices = neg_indices[reg_random_indices][:n_neg_indices]
+
+                    # hard neg example mining
+                    neg_cls_preds = cls_preds[neg_indices]
+                    neg_indices = torch.sort(neg_cls_preds[:, 0])[1][:n_neg_indices]
 
                     pos_anchors = torch.tensor(
                         self.anchors_coord_changed[pos_indices]
                     ).float().to(device)
 
-                    pos_preds = prediction[pos_indices]
-                    neg_preds = prediction[neg_indices]
-
                     # preds bbox is tx ty tw th
-                    total_t.append(pos_preds[:, :4])
+                    total_t.append(reg_preds[pos_indices])
 
                     gt_bboxes = change_coordinate(gt_bboxes)
                     gt_bboxes = torch.tensor(gt_bboxes).float().to(device)
@@ -158,10 +169,10 @@ class Trainer(object):
                     gt = torch.stack((gtx, gty, gtw, gth), dim=1)
                     total_gt.append(gt)
 
-                    pos_targets = torch.ones(pos_preds.size()[0]).long().to(device)
-                    neg_targets = torch.zeros(neg_preds.size()[0]).long().to(device)
+                    pos_targets = torch.ones(len(pos_indices)).long().to(device)
+                    neg_targets = torch.zeros(len(neg_indices)).long().to(device)
 
-                    effective_preds = torch.cat((pos_preds[:, 4:], neg_preds[:, 4:]))
+                    effective_preds = torch.cat((cls_preds[pos_indices], neg_cls_preds[neg_indices]))
                     targets = torch.cat((pos_targets, neg_targets))
 
                     shuffle_indexes = torch.randperm(effective_preds.size()[0])
@@ -180,10 +191,15 @@ class Trainer(object):
                 total_effective_pred = torch.cat(total_effective_pred)
 
                 loss_class = F.cross_entropy(
-                    total_effective_pred, total_targets
+                    total_effective_pred, total_targets,
                 )
                 loss_reg = F.smooth_l1_loss(total_t, total_gt)
                 loss = loss_class + loss_reg
+
+                if mode == 'train':
+                    self.optimizer.zero_grad()
+                    loss.backward()
+                    self.optimizer.step()
 
                 total_class_loss += loss_class.data
                 total_reg_loss += loss_reg.data
@@ -206,11 +222,6 @@ class Trainer(object):
                         for tag, value in info.items():
                             step = (self.current_epoch-1) * total_iter + index
                             self.logger.scalar_summary(tag, value, step)
-
-                if mode == 'train':
-                    self.optimizer.zero_grad()
-                    loss.backward()
-                    self.optimizer.step()
 
             logging.info('[{}][epoch:{}] total_class_loss - {} total_reg_loss {} - total_loss {}'.format(
                 mode, self.current_epoch, total_class_loss / total_iter, total_reg_loss / total_iter, total_loss / total_iter
@@ -239,6 +250,10 @@ class Trainer(object):
                 for tag, value in info.items():
                     step = self.current_epoch
                     self.logger.scalar_summary(tag, value, step)
+
+                # compute mAP
+                mAP = evaluate(self.model)
+                self.logger.scalar_summary('mean_average_precision', mAP, self.current_epoch)
 
     def persist(self, is_best=False):
         model_dir = os.path.join(self.log_dir, 'models')

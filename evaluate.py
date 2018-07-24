@@ -9,19 +9,19 @@ from evaluation_metrics import AP
 import numpy as np
 
 
-def main(args):
+def evaluate(model):
     _, val_dataset = create_wf_datasets(Config.WF_DATASET_DIR)
 
     val_dataloader = torch.utils.data.DataLoader(
         val_dataset,
         batch_size=Config.BATCH_SIZE,
         num_workers=Config.DATALOADER_WORKER_NUM,
-        shuffle=False,
+        shuffle=True,
         collate_fn=my_collate_fn
     )
 
     total = len(val_dataloader)
-    detector = Detector(args.model)
+    detector = Detector(model)
     APs = []
     for index, data in enumerate(val_dataloader):
         predictions = detector.forward(data)
@@ -41,9 +41,7 @@ def main(args):
             ap = AP(prediction, gt, 0.5)
             APs.append(ap[1.0])
 
-        print("{} / {}".format(index, total))
-
-    print("mAP: {}".format(sum(APs)/len(APs)))
+    return sum(APs) / len(APs)
 
 
 if __name__ == '__main__':
@@ -53,4 +51,5 @@ if __name__ == '__main__':
                              'name or model file absolute path')
 
     args = parser.parse_args()
-    main(args)
+    mAP = evaluate(args.model)
+    print("mAP: {}".format(mAP))
