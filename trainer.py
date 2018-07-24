@@ -50,7 +50,11 @@ class Trainer(object):
 
         # initialize model
         self.optimizer = optimizer
-        self.model = model.float().to(device)
+        self.model = model.float()
+        if torch.cuda.device_count() > 1:
+            self.model = nn.DataParallel(self.model)
+        self.model.to(device)
+
         self.model.load_state_dict(model_zoo.load_url(Config.VGG16_PRETRAINED_WEIGHTS), strict=False)
         self.resume = str(resume) if resume else False
 
