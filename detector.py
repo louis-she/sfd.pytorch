@@ -5,7 +5,6 @@ import sys
 import cv2
 import numpy as np
 import torch
-from torchvision import transforms
 
 from anchor import generate_anchors
 from config import Config
@@ -22,7 +21,7 @@ class Detector(object):
         if type(model) == str:
             checkpoint = torch.load(seek_model(model))
             self.model = Net().to(device)
-            self.model.load_state_dict(checkpoint['state_dict'], strict=False)
+            self.model.load_state_dict(checkpoint['state_dict'], strict=True)
         else:
             self.model = model
         self.model.eval()
@@ -37,11 +36,6 @@ class Detector(object):
         self.anchors = torch.tensor(change_coordinate(np.vstack(
             list(map(lambda x: np.array(x), generate_anchors(*anchor_configs)))
         ))).float()
-
-        self.transforms = transforms.Compose([
-            transforms.ToPILImage(),
-            transforms.ToTensor()
-        ])
 
     def convert_predictions(self, predictions, scale, path=''):
         # get sorted indices by score
@@ -64,6 +58,7 @@ class Detector(object):
         if len(predictions) == 0:
             return None
         anchors = anchors.to(device)
+
         x = (predictions[:, 0] * anchors[:, 2] + anchors[:, 0]) * scale[1]
         y = (predictions[:, 1] * anchors[:, 3] + anchors[:, 1]) * scale[0]
         w = (torch.exp(predictions[:, 2]) * anchors[:, 2]) * scale[1]
@@ -114,20 +109,24 @@ class Detector(object):
 
     def infer(self, image):
         image = cv2.imread(image)
+        image = image - np.array([104, 117, 123], dtype=np.uint8)
         scale = (image.shape[0] / self.image_size,
                  image.shape[1] / self.image_size)
         image = cv2.resize(image, (self.image_size,) * 2)
-        image = self.transforms(image)
 
-        _input = image.float().to(device).unsqueeze(0)
+        _input = torch.tensor(image).permute(2, 0, 1).float() \
+            .to(device).unsqueeze(0)
 
         predictions = self.model(_input)
         # flatten predictions
+        reg_preds = []
+        cls_preds = []
         for index, prediction in enumerate(predictions):
-            predictions[index] = prediction.view(6, -1).permute(1, 0)
-        predictions = torch.cat(predictions)
+            predictions[index] = prediction.squeeze().view(prediction.size()[1], -1).permute(1, 0)
+        reg_preds = torch.cat(predictions[::2])
+        cls_preds = torch.cat(predictions[1::2])
 
-        return self.convert_predictions(predictions, scale)
+        return self.convert_predictions(torch.cat((reg_preds, cls_preds), dim=1), scale)
 
 def main(args):
     print('predicted bounding boxes of faces:')
