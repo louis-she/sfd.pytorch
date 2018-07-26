@@ -11,7 +11,7 @@ from torch import nn
 
 from anchor import generate_anchors, mark_anchors
 from config import Config
-from utils import change_coordinate, seek_model
+from utils import change_coordinate, seek_model, change_coordinate_inv
 from logger import Logger
 from evaluate import evaluate
 
@@ -66,10 +66,10 @@ class Trainer(object):
             list(map(lambda x: np.array(x), generate_anchors(
                 Config.ANCHOR_STRIDE,
                 Config.ANCHOR_SIZE,
-                Config.IMAGE_SIZE
+                (Config.IMAGE_SIZE,) * 2
             )))
         )
-        self.anchors_coord_changed = change_coordinate(self.anchors)
+        self.anchor_coord_changed = change_coordinate_inv(self.anchors)
         self.len_anchors = len(self.anchors)
 
         # resume from some model
@@ -106,7 +106,9 @@ class Trainer(object):
             total_loss = 0
             total_iter = len(dataloader)
 
-            for index, (images, all_gt_bboxes, path, _) in enumerate(dataloader):
+            for index, (images, all_gt_bboxes, path) in enumerate(dataloader):
+                if mode == 'validate':
+                    break
                 # gt_bboxes: 2-d list of (batch_size, ndarray(bbox_size, 4) )
                 image = images.float().permute(0, 3, 1, 2).to(device)
                 res = self.model(image)
@@ -115,7 +117,6 @@ class Trainer(object):
                 # get and flatten reg_preds and cls_preds from predictions
                 reg_preds_list = []
                 cls_preds_list = []
-
                 for i, prediction in enumerate(predictions):
                     prediction = list(prediction)
                     for k, feature_map_prediction in enumerate(prediction):
@@ -139,7 +140,7 @@ class Trainer(object):
                         continue
 
                     pos_indices, gt_bboxes_indices, neg_indices = \
-                        mark_anchors(self.anchors, gt_bboxes,
+                        mark_anchors(self.anchor_coord_changed, gt_bboxes,
                                      positive_threshold=Config.POSITIVE_ANCHOR_THRESHOLD,
                                      negative_threshold=Config.NEGATIVE_ANCHOR_THRESHOLD,
                                      least_pos_num=Config.LEAST_POSITIVE_ANCHOR_NUM)
@@ -156,7 +157,7 @@ class Trainer(object):
                     neg_indices = torch.sort(neg_cls_preds[:, 0])[1][:n_neg_indices]
 
                     pos_anchors = torch.tensor(
-                        self.anchors_coord_changed[pos_indices]
+                        self.anchors[pos_indices]
                     ).float().to(device)
 
                     # preds bbox is tx ty tw th
@@ -227,12 +228,13 @@ class Trainer(object):
                             step = (self.current_epoch-1) * total_iter + index
                             self.logger.scalar_summary(tag, value, step)
 
-            logging.info('[{}][epoch:{}] total_class_loss - {} total_reg_loss {} - total_loss {}'.format(
-                mode, self.current_epoch, total_class_loss / total_iter, total_reg_loss / total_iter, total_loss / total_iter
-            ))
-
             if Config.TENSOR_BOARD_ENABLED and mode == 'train':
                 # Log the scalar values
+
+                logging.info('[{}][epoch:{}] total_class_loss - {} total_reg_loss {} - total_loss {}'.format(
+                    mode, self.current_epoch, total_class_loss / total_iter, total_reg_loss / total_iter, total_loss / total_iter
+                ))
+
                 info = {
                     'average_train_loss_classification': total_class_loss / total_iter,
                     'average_train_loss_regression': total_reg_loss / total_iter,
@@ -244,19 +246,10 @@ class Trainer(object):
                     self.logger.scalar_summary(tag, value, step)
 
             elif Config.TENSOR_BOARD_ENABLED and mode == 'validate':
-                # Log the scalar values
-                info = {
-                    'average_validation_loss_classification': total_class_loss / total_iter,
-                    'average_validation_loss_regression': total_reg_loss / total_iter,
-                    'average_validation_total_loss': total_loss / total_iter,
-                }
-
-                for tag, value in info.items():
-                    step = self.current_epoch
-                    self.logger.scalar_summary(tag, value, step)
-
                 # compute mAP
+                logging.info('[epoch:{}] computing mAP...'.format(self.current_epoch))
                 mAP = evaluate(self.model)
+                logging.info('[epoch:{}] mAP is {}'.format(self.current_epoch, mAP))
                 self.logger.scalar_summary('mean_average_precision', mAP, self.current_epoch)
 
     def persist(self, is_best=False):

@@ -3,9 +3,9 @@ class Config(object):
     DEVICE = 'cuda'
 
     # pathes
-    VOC_DATASET_DIR = '/home/xxx/datasets/VOC2012'
-    WF_DATASET_DIR = '/home/xxx/datasets/wider_face'
-    LOG_DIR = './logs'
+    VOC_DATASET_DIR = '/home/louis/datasets/VOC2012'
+    WF_DATASET_DIR = '/home/louis/datasets/wider_face'
+    LOG_DIR = '/media/louis/ext4/models/sfd'
 
     # datasets
     DATASETS = 'WF' # currently support 'WF' and 'VOC'
@@ -25,38 +25,27 @@ class Config(object):
     NEGATIVE_ANCHOR_THRESHOLD = 0.1
     LEAST_POSITIVE_ANCHOR_NUM = 100
     LOSS_LOG_STRIDE = 1  # log loss every N iter
-    DATALOADER_WORKER_NUM = 4
+    DATALOADER_WORKER_NUM = 1
     VGG16_PRETRAINED_WEIGHTS = "https://download.pytorch.org/models/vgg16-397923af.pth"
 
     """
     image augmentation
     """
-    RANDOM_CROP = False
     # relative to the shorter edge of the image
-    MIN_CROPPED_RATIO = 0.7
+    MIN_CROPPED_RATIO = 0.3
     MAX_CROPPED_RATIO = 1
-    # if changed, the batch_size should also be changed
-    # to prevent out of memory issue
-    CROPPED_IMAGE_COUNT = 2
-    # whether to keep a largest square of the image
-    # not been counted in CROPPED_IMAGE_COUNT
-    KEEP_LARGEST_SQUARE = True
     # if KEEP_THRESHOLD area or larger of ground truth bounding is in the
     # cropped image, then keep keep and crop the ground truth bounding box.
     KEEP_AREA_THRESHOLD = 0.5
 
-    # whether to keep the original image without cropping
-    # not been counted in CROPPED_IMAGE_COUNT
-    KEEP_ORIGINAL = True
-
-    RANDOM_FLIP = False
+    RANDOM_FLIP = True
     RANDOM_COLOR_JITTER = False
 
     # anchors, have skipped the first feature map cause I'm
     # not very interested at very tiny faces
     IMAGE_SIZE = 640
-    ANCHOR_STRIDE = [8, 16, 32, 64, 128]
-    ANCHOR_SIZE = [32, 64, 128, 256, 512]
+    ANCHOR_STRIDE = [4, 8, 16, 32, 64, 128]
+    ANCHOR_SIZE = [16, 32, 64, 128, 256, 512]
     NEG_POS_ANCHOR_NUM_RATIO = 3
 
     # nms threshold

@@ -6,7 +6,7 @@ import cv2
 import numpy as np
 import torch
 
-from anchor import generate_anchors
+from anchor import generate_anchors, anchors_of_feature_map
 from config import Config
 from model import Net
 from utils import change_coordinate, change_coordinate_inv, seek_model, save_bounding_boxes_image, nms
@@ -31,19 +31,16 @@ class Detector(object):
         anchor_configs = (
             Config.ANCHOR_STRIDE,
             Config.ANCHOR_SIZE,
-            Config.IMAGE_SIZE
         )
-        self.anchors = torch.tensor(change_coordinate(np.vstack(
-            list(map(lambda x: np.array(x), generate_anchors(*anchor_configs)))
-        ))).float()
 
-    def convert_predictions(self, predictions, scale, path=''):
+    def convert_predictions(self, predictions, path, anchors):
         # get sorted indices by score
+
         scores, klass = torch.max(softmax(predictions[:, 4:]), dim=1)
         inds = klass != 0
 
         scores, klass, predictions, anchors = \
-            scores[inds], klass[inds], predictions[inds], self.anchors[inds]
+            scores[inds], klass[inds], predictions[inds], anchors[inds]
 
         if len(scores) == 0:
             return None
@@ -60,12 +57,12 @@ class Detector(object):
 
         if len(predictions) == 0:
             return None
-        anchors = anchors.to(device)
+        anchors = anchors.to(device).float()
 
-        x = (predictions[:, 0] * anchors[:, 2] + anchors[:, 0]) * scale[1]
-        y = (predictions[:, 1] * anchors[:, 3] + anchors[:, 1]) * scale[0]
-        w = (torch.exp(predictions[:, 2]) * anchors[:, 2]) * scale[1]
-        h = (torch.exp(predictions[:, 3]) * anchors[:, 3]) * scale[0]
+        x = (predictions[:, 0] * anchors[:, 2] + anchors[:, 0])
+        y = (predictions[:, 1] * anchors[:, 3] + anchors[:, 1])
+        w = (torch.exp(predictions[:, 2]) * anchors[:, 2])
+        h = (torch.exp(predictions[:, 3]) * anchors[:, 3])
 
         bounding_boxes = torch.stack((x, y, w, h), dim=1).cpu().data.numpy()
         bounding_boxes = change_coordinate_inv(bounding_boxes)
@@ -91,22 +88,30 @@ class Detector(object):
         predictions = list(zip(*list(self.model(images))))
         result = []
 
-        reg_preds_list = []
-        cls_preds_list = []
-
         for i, prediction in enumerate(predictions):
-            scale = batched_data[3][i]
             prediction = list(prediction)
+            anchors = []
             for k, feature_map_prediction in enumerate(prediction):
+                # create anchors of this feature_map_prediction layer
+
+                if (k % 2) == 0:
+                    anchors.append( np.array( anchors_of_feature_map(
+                        Config.ANCHOR_STRIDE[k//2],
+                        Config.ANCHOR_SIZE[k//2],
+                        feature_map_prediction.size()[1:])))
+
                 prediction[k] = feature_map_prediction \
                     .view(feature_map_prediction.size()[0], -1) \
                     .permute(1, 0).contiguous()
+
             reg_preds = torch.cat(prediction[::2])
             cls_preds = torch.cat(prediction[1::2])
 
+            anchors = torch.tensor(np.vstack(anchors))
+
             result.append(self.convert_predictions(
                 torch.cat((reg_preds, cls_preds), dim=1),
-                scale, batched_data[2][i]))
+                batched_data[2][i], anchors))
 
         return result
 

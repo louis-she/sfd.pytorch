@@ -1,4 +1,16 @@
 import numpy as np
+from utils import change_coordinate_inv
+
+
+def anchors_of_feature_map(stride, size, feature_map_shape):
+    anchors = []
+    height, width = feature_map_shape
+    for row in range(height):
+        center_y = row * stride + size // 2
+        for col in range(width):
+            center_x = col * stride + size // 2
+            anchors.append( (center_x, center_y, size, size) )
+    return anchors
 
 
 def generate_anchors(anchor_stride, anchor_size, image_size):
@@ -10,18 +22,13 @@ def generate_anchors(anchor_stride, anchor_size, image_size):
         stride = anchor_stride[i]
         size = anchor_size[i]
 
-        for row in range(image_size // stride):
-            top = row * stride
-            for col in range(image_size // stride):
-                left = col * stride
-                bottom = top + size
-                right = left + size
-                anchors.append((
-                    top,
-                    left,
-                    min(bottom, image_size),
-                    min(right, image_size)
-                ))
+        for row in range(image_size[0] // stride):
+            center_y = row * stride + size // 2
+            for col in range(image_size[1] // stride):
+                center_x = col * stride + size // 2
+                width = size
+                height = size
+                anchors.append(( center_x, center_y, width, height))
 
         all_anchors.append(anchors)
 

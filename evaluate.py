@@ -14,7 +14,7 @@ def evaluate(model):
 
     val_dataloader = torch.utils.data.DataLoader(
         val_dataset,
-        batch_size=Config.BATCH_SIZE,
+        batch_size=1,
         num_workers=Config.DATALOADER_WORKER_NUM,
         shuffle=True,
         collate_fn=my_collate_fn
@@ -30,13 +30,7 @@ def evaluate(model):
                 APs.append(0)
                 continue
             prediction = predictions[i]
-            gt = data[1][i]
-            scale = data[3][i]
-
-            gt[:, 0] *= scale[0]
-            gt[:, 1] *= scale[1]
-            gt[:, 2] *= scale[0]
-            gt[:, 3] *= scale[1]
+            gt = np.array(data[1][i])
 
             ap = AP(prediction, gt, 0.5)
             APs.append(ap[1.0])
