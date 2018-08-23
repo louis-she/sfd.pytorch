@@ -118,9 +118,6 @@ class Detector(object):
     def infer(self, image):
         image = cv2.imread(image)
         image = image - np.array([104, 117, 123], dtype=np.uint8)
-        scale = (image.shape[0] / self.image_size,
-                 image.shape[1] / self.image_size)
-        image = cv2.resize(image, (self.image_size,) * 2)
 
         _input = torch.tensor(image).permute(2, 0, 1).float() \
             .to(device).unsqueeze(0)
@@ -129,12 +126,23 @@ class Detector(object):
         # flatten predictions
         reg_preds = []
         cls_preds = []
+        anchors = []
         for index, prediction in enumerate(predictions):
+            if (index % 2) == 0:
+                anchors.append( np.array( anchors_of_feature_map (
+                    Config.ANCHOR_STRIDE[index//2],
+                    Config.ANCHOR_SIZE[index//2],
+                    prediction.size()[2:]
+                )))
+
             predictions[index] = prediction.squeeze().view(prediction.size()[1], -1).permute(1, 0)
+
+        anchors = torch.tensor(np.vstack(anchors))
         reg_preds = torch.cat(predictions[::2])
         cls_preds = torch.cat(predictions[1::2])
 
-        return self.convert_predictions(torch.cat((reg_preds, cls_preds), dim=1), scale)
+        return self.convert_predictions(torch.cat((reg_preds, cls_preds), dim=1), None, anchors)
+
 
 def main(args):
     print('predicted bounding boxes of faces:')

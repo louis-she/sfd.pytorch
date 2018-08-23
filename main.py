@@ -48,7 +48,8 @@ def main():
         val_dataloader,
         resume=Config.RESUME_FROM,
         log_dir=Config.LOG_DIR,
-        persist_stride=Config.MODEL_SAVE_STRIDE
+        persist_stride=Config.MODEL_SAVE_STRIDE,
+        max_epoch=Config.EPOCHS
     )
     trainer.train()
 
