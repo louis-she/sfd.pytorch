@@ -1,6 +1,10 @@
 # sfd.pytorch
 sfd implementation for face recognition in pytorch. Paper at: [SFD: Single Shot Scale-invariant Face Detector](https://arxiv.org/abs/1708.05237)
 
+## Need help :sweat_drops:
+
+This repo is still under developing, any issue or pull request is very welcome. Currently the weights given bellow achieve 0.6 mAP on all the validation set of wider face. I'm still training it with my poor 1080ti. Anyone with more computing resources wants to train this please open an issue to get in touched.
+
 ## Requirements
 
 * Python 3.6
@@ -21,10 +25,10 @@ sfd implementation for face recognition in pytorch. Paper at: [SFD: Single Shot 
 The `detector.py` is executable and programmable, see `inference.ipynb` for a quick look at how to use the detector API. Using the following command for directly use it in the command line.
 
 ```
-python3 detector.py --image ./image/test.jpg --model ./epoch_41.pth.tar
+python3 detector.py --image ./image/test.jpg --model ./epoch_204.pth.tar
 ```
 
-The trained model `epoch_41.pth.tar` can be downloaded from [Baidu Yun](https://pan.baidu.com/s/1hC0GJh98UPZMrNhI_8jbVg) or [Google Drive](https://drive.google.com/open?id=1d8J_GWdez-AZ3oHifmOgKkr8ljWudy2D).
+The trained model `epoch_204.pth.tar` can be downloaded from [Baidu Yun](https://pan.baidu.com/s/1n2TzKIWP0qRgM6zgCE98Lw) or [Google Drive](https://drive.google.com/open?id=1WPX-sjEQdIQ0COnxBtlM_mLIhN652UQq).
 
 The detector will draw bounding boxes and the result is showing bellow
 
