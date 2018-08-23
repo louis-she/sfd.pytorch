@@ -83,8 +83,8 @@ class Net(VGG):
         f6 = self.conv7_2(x)
 
         return [
-            # self.predict3_3_reg(f1_norm),
-            # self.predict3_3_cls(f1_norm),
+            self.predict3_3_reg(f1_norm),
+            self.predict3_3_cls(f1_norm),
             self.predict4_3_reg(f2_norm),
             self.predict4_3_cls(f2_norm),
             self.predict5_3_reg(f3_norm),

@@ -27,7 +27,7 @@ def main():
 
     val_dataloader = torch.utils.data.DataLoader(
         val_dataset,
-        batch_size=Config.BATCH_SIZE,
+        batch_size=1,
         num_workers=Config.DATALOADER_WORKER_NUM,
         shuffle=False,
         collate_fn=my_collate_fn
@@ -48,7 +48,8 @@ def main():
         val_dataloader,
         resume=Config.RESUME_FROM,
         log_dir=Config.LOG_DIR,
-        persist_stride=Config.MODEL_SAVE_STRIDE
+        persist_stride=Config.MODEL_SAVE_STRIDE,
+        max_epoch=Config.EPOCHS
     )
     trainer.train()
 

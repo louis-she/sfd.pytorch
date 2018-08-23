@@ -6,18 +6,17 @@ import torch
 from torch.utils.data import Dataset
 from random import uniform
 from torchvision import transforms
+from random import random
 
 from config import Config
 from imageaug import crop_square, random_horizontal_flip
 
 def my_collate_fn(batch):
-    batch = [y for x in batch for y in x]
     images = torch.stack(list(map(lambda x: torch.tensor(x[0]), batch)))
     coordinates = list(map(lambda x: x[1], batch))
     pathes = list(map(lambda x: x[2], batch))
-    scale = np.array(list(map(lambda x: x[3], batch)))
 
-    return images, coordinates, pathes, scale
+    return images, coordinates, pathes
 
 
 def create_wf_datasets(dataset_dir):
@@ -71,9 +70,7 @@ def create_wf_datasets(dataset_dir):
     validation_dataset = FDDBDataset(
         os.path.join(dataset_dir, 'WIDER_val/images'),
         val_processed_annotation,
-        image_size=Config.IMAGE_SIZE,
-        random_flip=False, random_crop=False,
-        random_color_jitter=False)
+        image_size=Config.IMAGE_SIZE, mode='val')
 
     return train_dataset, validation_dataset
 
@@ -81,16 +78,18 @@ def create_wf_datasets(dataset_dir):
 class FDDBDataset(Dataset):
 
     def __init__(self, images_dir, annotation, image_size=640,
-                 random_crop=Config.RANDOM_CROP, random_flip=Config.RANDOM_FLIP,
-                 random_color_jitter=Config.RANDOM_COLOR_JITTER):
+                 random_flip=Config.RANDOM_FLIP, random_crop=True,
+                 random_color_jitter=Config.RANDOM_COLOR_JITTER,
+                 mode='train'):
         super().__init__()
         self.images_dir = images_dir
         self.annotation = annotation
         self.image_size = image_size
-        self.random_crop = random_crop
         self.random_color_jitter = random_color_jitter
         self.random_flip = random_flip
         self.transform = None
+        self.random_crop = random_crop
+        self.mode = mode
 
         # self.init_transforms()
 
@@ -117,33 +116,16 @@ class FDDBDataset(Dataset):
         image = self.__image_loader(file_path)
         image = image - np.array([104, 117, 123], dtype=np.uint8)
 
-        images = []
-        coordinates_list = []
-        if self.random_crop:
-            ratio = uniform(Config.MIN_CROPPED_RATIO, Config.MAX_CROPPED_RATIO)
-            for _ in range(Config.CROPPED_IMAGE_COUNT):
-                cropped_image, new_coordinates = crop_square(
-                    image, coordinates, ratio, Config.KEEP_AREA_THRESHOLD)
-                images.append(cropped_image)
-                coordinates_list.append(new_coordinates)
-            if Config.KEEP_LARGEST_SQUARE:
-                cropped_image, new_coordinates = crop_square(image, coordinates, 1)
-                images.append(cropped_image)
-                coordinates_list.append(new_coordinates)
-            if Config.KEEP_ORIGINAL:
-                images.append(image)
-                coordinates_list.append(coordinates)
-        else:
-            images.append(image)
-            coordinates_list.append(coordinates)
+        if self.mode == 'train':
+            if random() < 0.5:
+                ratio = uniform(Config.MIN_CROPPED_RATIO, Config.MAX_CROPPED_RATIO)
+            else:
+                ratio = 1
 
-        if self.random_flip:
-            for index, image in enumerate(images):
-                images[index], coordinates_list[index] = \
-                    random_horizontal_flip(image, coordinates_list[index])
-        result = []
-        for index, image in enumerate(images):
-            coordinates = coordinates_list[index]
+            image, coordinates = crop_square(
+                image, coordinates, ratio, Config.KEEP_AREA_THRESHOLD)
+            image, coordinates = \
+                random_horizontal_flip(image, coordinates)
 
             # scale coordinate
             height, width = image.shape[:2]
@@ -155,9 +137,9 @@ class FDDBDataset(Dataset):
                 x[3] * width_scale,
                 *x[4:]
             ], coordinates)))
+
             image = cv2.resize(image, (self.image_size, self.image_size))
             if self.transform:
                 image = self.transform(image)
-            result.append((image, coordinates, file_path, (1 / height_scale, 1 / width_scale)))
 
-        return result
+        return image, coordinates, file_path
