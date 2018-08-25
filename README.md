@@ -3,7 +3,7 @@ sfd implementation for face recognition in pytorch. Paper at: [SFD: Single Shot 
 
 ## Need help :sweat_drops:
 
-This repo is still under developing, any issue or pull request is very welcome. Currently the weights given bellow achieve 0.6 mAP on all the validation set of wider face. I'm still training it with my poor 1080ti. Anyone with more computing resources wants to train this please open an issue to get in touched.
+This repo is still under developing, any issue or pull request is very welcome. Currently the weights given bellow achieve 0.7 mAP on all the validation set of wider face. I'm still training it with my poor 1080ti. Anyone with more computing resources wants to train this please open an issue to get in touched.
 
 ## Requirements
 
