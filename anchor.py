@@ -51,6 +51,10 @@ def mark_anchors(anchors, gt_boxes, positive_threshold=0.3,
     positive_iou = iou[positive_anchor_indices]
     matched_gt_box_indices = positive_iou.argmax(axis=1)
 
+    if len(matched_gt_box_indices) == 0:
+        # No matched face in this picture, ignore
+        return False
+
     # if matched anchors is not enough(less than least_pos_num),
     # do the sort and pick top least_pos_num trick.
     if len(matched_gt_box_indices) < least_pos_num:

@@ -106,9 +106,45 @@ class Trainer(object):
             total_loss = 0
             total_iter = len(dataloader)
 
-            for index, (images, all_gt_bboxes, path) in enumerate(dataloader):
+            for iter_index, (images, all_gt_bboxes, path) in enumerate(dataloader):
                 if mode == 'validate':
                     break
+
+                # mark anchors before forward the image, because the image
+                # without faces will not be trainned,
+                # since we used image crop, there should be a lot of image
+                # without faces.
+
+                all_marked_indices = []
+                no_face_indices = []
+
+                for index, gt_bboxes in enumerate(all_gt_bboxes):
+                    if len(gt_bboxes) == 0:
+                        no_face_indices.append(index)
+                        continue
+
+                    # pos_indices, gt_bboxes_indices, neg_indices = \
+                    marked_indices = mark_anchors(
+                        self.anchor_coord_changed, gt_bboxes,
+                        positive_threshold=Config.POSITIVE_ANCHOR_THRESHOLD,
+                        negative_threshold=Config.NEGATIVE_ANCHOR_THRESHOLD,
+                        least_pos_num=Config.LEAST_POSITIVE_ANCHOR_NUM)
+                    if not marked_indices:
+                        # there are no matched faces, skip this image
+                        no_face_indices.append(index)
+                    else:
+                        all_marked_indices.append(marked_indices)
+
+                # remove all the index from images, all_gt_bboxes and path
+                all_indices = list(range(len(all_gt_bboxes)))
+                select_indices = [i for i in all_indices if i not in no_face_indices]
+                if len(select_indices) == 0:
+                    continue
+
+                images = images[select_indices]
+                all_gt_bboxes = np.array(all_gt_bboxes)[select_indices]
+                # path = path[select_indices]
+
                 # gt_bboxes: 2-d list of (batch_size, ndarray(bbox_size, 4) )
                 image = images.float().permute(0, 3, 1, 2).to(device)
                 res = self.model(image)
@@ -134,20 +170,7 @@ class Trainer(object):
                 for i, reg_preds in enumerate(reg_preds_list):
                     cls_preds = cls_preds_list[i]
                     gt_bboxes = all_gt_bboxes[i]
-
-                    if len(gt_bboxes) == 0:
-                        # no ground truth bounding boxes, ignored
-                        continue
-
-                    pos_indices, gt_bboxes_indices, neg_indices = \
-                        mark_anchors(self.anchor_coord_changed, gt_bboxes,
-                                     positive_threshold=Config.POSITIVE_ANCHOR_THRESHOLD,
-                                     negative_threshold=Config.NEGATIVE_ANCHOR_THRESHOLD,
-                                     least_pos_num=Config.LEAST_POSITIVE_ANCHOR_NUM)
-
-                    # in very rare case of no positive anchors
-                    if len(pos_indices) == 0:
-                        continue
+                    pos_indices, gt_bboxes_indices, neg_indices = all_marked_indices[i]
 
                     # make samples of negative to positive 3:1
                     n_neg_indices = len(pos_indices) * Config.NEG_POS_ANCHOR_NUM_RATIO
@@ -195,7 +218,7 @@ class Trainer(object):
                 total_targets = torch.cat(total_target)
                 total_effective_pred = torch.cat(total_effective_pred)
 
-                loss_class = F.cross_entropy(
+                loss_class = 2 * F.cross_entropy(
                     total_effective_pred, total_targets,
                 )
                 loss_reg = F.smooth_l1_loss(total_t, total_gt)
@@ -213,20 +236,20 @@ class Trainer(object):
                 if not index % Config.LOSS_LOG_STRIDE:
                     logging.info(
                         "[{}][epoch:{}][iter:{}][total:{}] loss_class {:.8f} - loss_reg {:.8f} - total {:.8f}".format(
-                            mode, self.current_epoch, index, total_iter, loss_class.data, loss_reg.data, loss.data
+                            mode, self.current_epoch, iter_index, total_iter, loss_class.data, loss_reg.data, loss.data
                         )
                     )
 
-                    if Config.TENSOR_BOARD_ENABLED and mode == 'train':
-                        info = {
-                            'train_loss_classification': loss_class.data,
-                            'train_loss_regression': loss_reg.data,
-                            'train_total_loss': loss.data,
-                        }
+                    # if Config.TENSOR_BOARD_ENABLED and mode == 'train':
+                    #     info = {
+                    #         'train_loss_classification': loss_class.data,
+                    #         'train_loss_regression': loss_reg.data,
+                    #         'train_total_loss': loss.data,
+                    #     }
 
-                        for tag, value in info.items():
-                            step = (self.current_epoch-1) * total_iter + index
-                            self.logger.scalar_summary(tag, value, step)
+                    #     for tag, value in info.items():
+                    #         step = (self.current_epoch-1) * total_iter + index
+                    #         self.logger.scalar_summary(tag, value, step)
 
             if Config.TENSOR_BOARD_ENABLED and mode == 'train':
                 # Log the scalar values
