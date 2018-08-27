@@ -54,8 +54,6 @@ class Trainer(object):
         if torch.cuda.device_count() > 1:
             self.model = nn.DataParallel(self.model)
         self.model.to(device)
-
-        self.model.load_state_dict(model_zoo.load_url(Config.VGG16_PRETRAINED_WEIGHTS), strict=False)
         self.resume = str(resume) if resume else False
 
         self.training_dataloader = training_dataloader
@@ -218,7 +216,7 @@ class Trainer(object):
                 total_targets = torch.cat(total_target)
                 total_effective_pred = torch.cat(total_effective_pred)
 
-                loss_class = 2 * F.cross_entropy(
+                loss_class = 4 * F.cross_entropy(
                     total_effective_pred, total_targets,
                 )
                 loss_reg = F.smooth_l1_loss(total_t, total_gt)
