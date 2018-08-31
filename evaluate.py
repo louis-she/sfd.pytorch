@@ -10,6 +10,7 @@ import numpy as np
 
 
 def evaluate(model):
+    model = model.to(Config.DEVICE)
     _, val_dataset = create_wf_datasets(Config.WF_DATASET_DIR)
 
     val_dataloader = torch.utils.data.DataLoader(

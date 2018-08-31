@@ -266,7 +266,7 @@ class Trainer(object):
                     step = self.current_epoch
                     self.logger.scalar_summary(tag, value, step)
 
-            elif Config.TENSOR_BOARD_ENABLED and mode == 'validate':
+            elif Config.TENSOR_BOARD_ENABLED and mode == 'validate' and (self.current_epoch % 5 == 0):
                 # compute mAP
                 logging.info('[epoch:{}] computing mAP...'.format(self.current_epoch))
                 mAP = evaluate(self.model)
