@@ -50,6 +50,8 @@ def create_wf_datasets(dataset_dir):
                 coordinates = []
                 for bbox in bboxes:
                     bbox = bbox.split(' ')
+                    if int(bbox[7]) == 1:
+                        continue
                     coordinate = (
                         int(bbox[1]), int(bbox[0]),
                         int(bbox[1]) + int(bbox[3]),
